@@ -244,6 +244,8 @@ void fpga_platform_cleanup()
     g_uio_fpga_interface_info_vec_size = 0;
     
     errno = -1;  //  -1 is a valid return on success.  Some function, such as strtol(), doesn't set errno upon successful return.
+
+    fpga_msg_printf( FPGA_MSG_PRINTF_DEBUG, "Completed fpga_platform_cleanup" );
 }
 
 void uio_parse_args(unsigned int argc, const char *argv[])

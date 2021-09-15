@@ -85,6 +85,16 @@ void print_err(const char *s)
 	fprintf(stderr, "Error: %s\n", s);
 }
 
+void mmlink_sig_handler(int signo)
+{
+    if (signo == SIGINT)
+    {
+        printf("\nSIGINT triggered\n");
+        fpga_platform_cleanup();
+    }
+    exit(0);
+}
+
 remote_dbg *srv = nullptr;
 
 static int parse_cmd_args(struct MMLinkCommandLine *mmlinkCmdLine,
@@ -122,12 +132,14 @@ int main( int argc, char** argv )
 
 	fflush(stdout);
 
+        // Install SIGINT handler
+        struct sigaction sig_action;
+        memset(&sig_action, 0, sizeof(sig_action));
+        sig_action.sa_handler = &mmlink_sig_handler;
+        sig_action.sa_flags = 0;
 
-	// Signal Handler
-	//signal(SIGINT, mmlink_sig_handler);
-	//struct sigaction act_old, act_new;
-	//act_new.sa_handler = mmlink_sig_handler;
-	//sigaction(SIGINT, &act_new, &act_old);
+        if(sigaction(SIGINT, &sig_action, NULL) != 0)
+            printf("SIGINT handler installment failed.\n");
 
 	if( run_mmlink(&mmlinkCmdLine) != 0) {
 		printf("Failed to connect MMLINK  \n.");
