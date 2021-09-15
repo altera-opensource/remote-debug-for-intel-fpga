@@ -113,7 +113,6 @@ static inline void fpga_write_512(FPGA_MMIO_INTERFACE_HANDLE handle, uint32_t of
 void *fpga_malloc(FPGA_MMIO_INTERFACE_HANDLE handle, uint32_t size);
 void fpga_free(FPGA_MMIO_INTERFACE_HANDLE handle, void *address);
 FPGA_PLATFORM_PHYSICAL_MEM_ADDR_TYPE fpga_get_physical_address(void *address);
-typedef void (*FPGA_ISR) ( void *isr_context );
 int fpga_register_isr(FPGA_INTERRUPT_HANDLE handle, FPGA_ISR isr, void *isr_context);
 int fpga_enable_interrupt(FPGA_INTERRUPT_HANDLE handle);
 int fpga_disable_interrupt(FPGA_INTERRUPT_HANDLE handle);

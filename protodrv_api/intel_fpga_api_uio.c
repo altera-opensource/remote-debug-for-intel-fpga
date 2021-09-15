@@ -135,8 +135,49 @@ FPGA_PLATFORM_PHYSICAL_MEM_ADDR_TYPE fpga_get_physical_address(void *address)
     return 0;
 }
 
+int fpga_register_isr(FPGA_INTERRUPT_HANDLE handle, FPGA_ISR isr, void *isr_context)
+{
+    int ret = -1;
+    if (handle < g_uio_fpga_interface_info_vec_size )
+    {
+	ret = 0;
+        if(g_uio_fpga_interface_info_vec[handle].isr_callback != NULL)
+            ret = 1;
 
-typedef void (*FPGA_ISR) ( void *isr_context );
-int fpga_register_isr(FPGA_INTERRUPT_HANDLE handle, FPGA_ISR isr, void *isr_context);
-int fpga_enable_interrupt(FPGA_INTERRUPT_HANDLE handle);
-int fpga_disable_interrupt(FPGA_INTERRUPT_HANDLE handle);
+         g_uio_fpga_interface_info_vec[handle].isr_callback = isr;
+    }
+
+    return ret;
+}
+
+int fpga_enable_interrupt(FPGA_INTERRUPT_HANDLE handle)
+{
+    int ret    = -1;
+    int retVal = 0;
+    int status = 0;
+    if (handle < g_uio_fpga_interface_info_vec_size )
+    {
+        g_uio_fpga_interface_info_vec[handle].interrupt_enable = true;
+
+       status = sem_getvalue(&g_intSem, &retVal);
+       if(status == 0)
+       {
+           if(retVal <= 0)
+               sem_post(&g_intSem);
+       }
+        ret = 0;
+    }
+
+    return ret;
+}
+
+int fpga_disable_interrupt(FPGA_INTERRUPT_HANDLE handle)
+{
+    int ret = -1;
+    if (handle < g_uio_fpga_interface_info_vec_size )
+    {
+        g_uio_fpga_interface_info_vec[handle].interrupt_enable = false;
+        ret = 0;
+    }
+    return ret;
+}

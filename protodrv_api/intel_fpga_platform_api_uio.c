@@ -39,6 +39,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <pthread.h>
+#include <poll.h>
+#include <semaphore.h>
 
 #include "intel_fpga_api_uio.h"
 #include "intel_fpga_platform_uio.h"
@@ -47,6 +50,7 @@
 
 FPGA_INTERFACE_INFO     *g_uio_fpga_interface_info_vec = NULL;
 size_t                  g_uio_fpga_interface_info_vec_size = 0;
+sem_t g_intSem;
 
 static int uio_fpga_platform_default_printf(FPGA_MSG_PRINTF_TYPE type, const char * format, va_list args);
 static void uio_fpga_platform_default_runtime_exception_handler(const char *function, const char *file, int lineno, const char * format, va_list args);
@@ -58,9 +62,13 @@ static char *s_uio_drv_path = NULL;
 static size_t s_uio_addr_span = 0;
 static int s_uio_single_component_mode = 0;
 static size_t s_uio_start_addr = 0;
+static size_t s_uio_inThread_timeout = 0;
 
 static int  s_uio_drv_handle = -1;
 static void *s_uio_mmap_ptr = NULL;
+static pthread_t s_intThread_id = 0;
+static pthread_rwlock_t s_intLock;
+static int s_intFlags = 0;
 
 static void uio_parse_args(unsigned int argc, const char *argv[]);
 static long uio_parse_integer_arg(const char *name);
@@ -71,6 +79,79 @@ static bool uio_map_mmio();
 static bool uio_scan_interfaces();
 static bool uio_create_unit_test_sw_model();
 
+static void *uio_interrupt_thread();
+
+void *uio_interrupt_thread()
+{
+    int fd = 0;
+
+    while(1)
+    {
+        pthread_rwlock_rdlock(&s_intLock);
+        uint16_t flags = s_intFlags;
+        pthread_rwlock_unlock(&s_intLock);
+
+        if(!(flags & FPGA_PLATFORM_INT_THREAD_EXIT))
+        {
+            // Loop for uio with interrupt enabled
+            // Current implementaion support 1 vector
+            if(g_uio_fpga_interface_info_vec[0].interrupt_enable)
+            {
+               fd = open(s_uio_drv_path, O_RDWR);
+               if(fd < 0)
+                {
+                   fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread failed to open UIO device" );
+                    break;
+                }
+
+               struct pollfd fds = {
+                   .fd = fd,
+                   .events = POLLIN,
+                   };
+
+                uint32_t info = 1;
+                int ret =write(fd, &info, sizeof(info));
+                if(ret < 0)
+                {
+                   fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread failed to re-Arm UIO interrupt" );
+                   break;
+                }
+
+                // Polling with timeout to check thread exit flag
+                // s_uio_inThread_timeout init in uio_parse_args()
+                ret = poll(&fds, 1, s_uio_inThread_timeout);
+
+                if(ret > 0){
+                    if(g_uio_fpga_interface_info_vec[0].isr_callback != NULL){
+                        (*g_uio_fpga_interface_info_vec[0].isr_callback)();
+                    } else {
+                        fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread ISR is NULL ptr" );
+			break;
+                    }
+                }
+
+                if(fd > 0)
+	            close(fd);
+
+            } else {
+
+                // Interrupt Thread blocked until sem_post
+               sem_wait(&g_intSem);
+           }
+       }
+       else
+       {
+            // Interrupt Thread exit
+            fpga_msg_printf( FPGA_MSG_PRINTF_DEBUG, "InterruptThread exit" );
+            pthread_exit(NULL);
+       }
+    }
+
+    // Interrupt Thread exit for break condition
+    fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread exit with error" );
+    pthread_exit(NULL);
+}
+
 bool fpga_platform_init(unsigned int argc, const char *argv[])
 {
     bool        ret = false;
@@ -78,6 +159,9 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
 
     uio_parse_args(argc, argv);
     is_args_valid = uio_validate_args();
+
+    // Interrupt Timeout is configured to 100ms
+    s_uio_inThread_timeout = 100;
 
     if (is_args_valid)
     {
@@ -90,6 +174,17 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
         ret = uio_create_unit_test_sw_model();
 #endif
     }
+
+    if(s_uio_single_component_mode)
+    {
+        // Interrupt Thread creation and sync init
+        sem_init(&g_intSem, 0, 0);
+        pthread_rwlock_init(&s_intLock,0);
+        pthread_rwlock_wrlock(&s_intLock);
+        s_intFlags = 0;
+        pthread_rwlock_unlock(&s_intLock);
+        pthread_create(&s_intThread_id, NULL, uio_interrupt_thread, NULL);
+    }
         
     return ret;
 }
@@ -97,6 +192,32 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
 
 void fpga_platform_cleanup()
 {
+    void *ret;
+    int retVal = 0;
+    int status = 0;
+
+    if(s_intThread_id != 0)
+    {
+        pthread_rwlock_wrlock(&s_intLock);
+       s_intFlags = s_intFlags | FPGA_PLATFORM_INT_THREAD_EXIT;
+       pthread_rwlock_unlock(&s_intLock);
+
+       status = sem_getvalue(&g_intSem, &retVal);
+       if(status == 0)
+        {
+               if(retVal <= 0)
+                   sem_post(&g_intSem);
+        }
+
+       if(pthread_join(s_intThread_id, &ret) != 0)
+       {
+           fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "Interrupt Thread join failed" );
+       } else {
+	   fpga_msg_printf( FPGA_MSG_PRINTF_DEBUG, "Interrupt Thread join successfully" );
+       }
+
+    }
+
     if (s_uio_drv_handle>=0)
     {
         close(s_uio_drv_handle);

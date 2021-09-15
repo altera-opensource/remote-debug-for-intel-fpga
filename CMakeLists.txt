@@ -1,14 +1,10 @@
 cmake_minimum_required(VERSION 3.2)
-project(Fpga_remote_debug)
+project(remote-debug-for-intel-fpga)
 
 option(SW_MODEL "SW Model Unit Test")
 
 set(CMAKE_C_COMPILER        "gcc")
 set(CMAKE_CXX_COMPILER      "g++")
-
-if(${SW_MODEL})
-    set(SW_MODEL_FLAG "-DUIO_UNIT_TEST_SW_MODEL_MODE")
-endif()
 
 if(NOT ${CROSS_COMPILE} STREQUAL "")
     message("App info -- Cross Compilation = ${CROSS_COMPILE}")
@@ -26,6 +22,9 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L /usr/local/lib -pthread
 include_directories(include)
 add_subdirectory(protodrv_api)
 add_subdirectory(streaming)
+if(${TEST})
+    add_subdirectory(test)
+endif()
 
 file(GLOB main_FILE main.cpp)
 add_executable(etherlink ${main_FILE})

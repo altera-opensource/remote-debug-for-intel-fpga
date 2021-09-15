@@ -28,6 +28,7 @@
 
 #include <stdbool.h>
 #include <stdarg.h>
+#include <semaphore.h>
 
 #ifdef __cplusplus
 extern "C" {

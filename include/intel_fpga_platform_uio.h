@@ -49,6 +49,10 @@ extern "C" {
 #define FPGA_PLATFORM_HAS_NATIVE_MMIO_WRITE_64
 #define FPGA_PLATFORM_IS_ISR_CALLED_IN_THREAD
 
+// Interrupt Thread Status Flag Definition
+#define FPGA_PLATFORM_INT_THREAD_EXIT      (1<<0)
+
+typedef void (*FPGA_ISR) ( void *isr_context );
 typedef int FPGA_MMIO_INTERFACE_HANDLE;
 #define FPGA_MMIO_INTERFACE_INVALID_HANDLE -1
 typedef int FPGA_INTERRUPT_HANDLE;
@@ -65,16 +69,17 @@ typedef struct
     uint16_t                     interrupt;      //!< interrupt assignment
     bool                         is_mmio_opened; 
     bool                         is_interrupt_opened;
+    bool                         interrupt_enable;
+    FPGA_ISR                     (*isr_callback)();
 } FPGA_INTERFACE_INFO;
 typedef void * FPGA_PLATFORM_PHYSICAL_MEM_ADDR_TYPE;
-
-
 
 // Platform specific internal API
 extern FPGA_INTERFACE_INFO     *g_uio_fpga_interface_info_vec;
 extern size_t                  g_uio_fpga_interface_info_vec_size;
 extern FPGA_MSG_PRINTF                 g_uio_fpga_platform_printf;
 extern FPGA_RUNTIME_EXCEPTION_HANDLER  g_uio_fpga_platform_runtime_exception_handler;
+extern sem_t g_intSem;
 
 #ifdef __cplusplus
 }

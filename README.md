@@ -17,5 +17,5 @@ Available Options:
     
     cmake . -Bbuild -DCROSS_COMPILE=/rocketboard/s10_gsrd/gcc-arm-10.2-2020.11-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu- && cd build
 
-2. -DSW_MODEL=yes/no.
-    This is to generate software model device against using actual /dev/uio device.
+2. -DTEST=yes/no.
+    This is to generate test cases under test directory.
