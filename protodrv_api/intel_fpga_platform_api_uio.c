@@ -154,7 +154,6 @@ void *uio_interrupt_thread()
 
 bool fpga_platform_init(unsigned int argc, const char *argv[])
 {
-    bool        ret = false;
     bool        is_args_valid;
 
     uio_parse_args(argc, argv);
@@ -167,11 +166,17 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
     {
         uio_print_configuration();
 #ifndef UIO_UNIT_TEST_SW_MODEL_MODE
-        ret = uio_open_driver();
-        ret &= uio_map_mmio();
-        ret &= uio_scan_interfaces();
+        if(uio_open_driver() == false)
+            goto err_open;
+
+        if(uio_map_mmio() == false)
+            goto err_map;
+
+        if(uio_scan_interfaces() == false)
+            goto err_scan;
 #else
-        ret = uio_create_unit_test_sw_model();
+        if(uio_create_unit_test_sw_model() == false)
+            goto err_scan;
 #endif
     }
 
@@ -185,8 +190,17 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
         pthread_rwlock_unlock(&s_intLock);
         pthread_create(&s_intThread_id, NULL, uio_interrupt_thread, NULL);
     }
-        
-    return ret;
+
+    return true;
+
+err_scan:
+    munmap(s_uio_mmap_ptr,s_uio_addr_span);
+
+err_map:
+    close(s_uio_drv_handle);
+
+err_open:
+    return false;
 }
 
 
@@ -199,14 +213,14 @@ void fpga_platform_cleanup()
     if(s_intThread_id != 0)
     {
         pthread_rwlock_wrlock(&s_intLock);
-       s_intFlags = s_intFlags | FPGA_PLATFORM_INT_THREAD_EXIT;
-       pthread_rwlock_unlock(&s_intLock);
+        s_intFlags = s_intFlags | FPGA_PLATFORM_INT_THREAD_EXIT;
+        pthread_rwlock_unlock(&s_intLock);
 
-       status = sem_getvalue(&g_intSem, &retVal);
-       if(status == 0)
+        status = sem_getvalue(&g_intSem, &retVal);
+        if(status == 0)
         {
-               if(retVal <= 0)
-                   sem_post(&g_intSem);
+            if(retVal <= 0)
+                sem_post(&g_intSem);
         }
 
        if(pthread_join(s_intThread_id, &ret) != 0)
@@ -399,11 +413,13 @@ bool uio_open_driver()
     s_uio_drv_handle = open(s_uio_drv_path, O_RDWR);
     if (s_uio_drv_handle == -1)
     {
+
 #ifdef _BSD_SOURCE
         fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "Failed to open %s. (Error code %d: %s)", s_uio_drv_path, sys_nerr, sys_errlist[sys_nerr] );
 #else
-        fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "Failed to open %s. (Error code %d)", errno );
-#endif    
+        fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "Failed to open %s. (Error code %d)", s_uio_drv_path, errno );
+#endif
+
         ret = false;
     }
     

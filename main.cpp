@@ -128,7 +128,11 @@ int main( int argc, char** argv )
  	printf(" Port             : %d\n", mmlinkCmdLine.port);
 	printf(" IP address       : %s\n", mmlinkCmdLine.ip);
 
-	fpga_platform_init(argc, (const char **)argv);
+	if(fpga_platform_init(argc, (const char **)argv) == false){
+            printf("fpga_platform_init failed\n");
+            rc = -1;
+            goto out_exit;
+	}
 
 	fflush(stdout);
 
@@ -139,11 +143,11 @@ int main( int argc, char** argv )
         sig_action.sa_flags = 0;
 
         if(sigaction(SIGINT, &sig_action, NULL) != 0)
-            printf("SIGINT handler installment failed.\n");
+            printf("SIGINT handler installment failed\n");
 
 	if( run_mmlink(&mmlinkCmdLine) != 0) {
-		printf("Failed to connect MMLINK  \n.");
-		rc = 3;
+            printf("Failed to connect MMLINK  \n.");
+            rc = 3;
 	}
 
 out_exit:
