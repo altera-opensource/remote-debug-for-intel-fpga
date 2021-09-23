@@ -121,8 +121,6 @@ typedef struct {
     // Optional callback to get a driver parameter.  Returns NULL if param is undefined.
     char *(*get_param)(const char *param);
 
-    // Print a message using printf style formatting + varargs
-    int(*server_printf)(printf_format_arg, ...);
 } SERVER_HW_CALLBACKS;
 
 typedef struct {
@@ -193,8 +191,8 @@ RETURN_CODE process_mgmt_rsp_data(CLIENT_CONN *client_conn, SERVER_CONN *server_
 // Misc helper
 void reset_buffers(SERVER_CONN *server_conn);
 void generate_server_welcome_message(char *buff, size_t buff_size, int mgmt_support, SERVER_BUFFERS *serv_buff, int handle);
-void print_last_socket_error(const char *context_msg, int(*printf_fp)(printf_format_arg, ...));
-void print_last_socket_error_b(const char *context_msg, ssize_t bytes_transferred, int(*printf_fp)(printf_format_arg, ...));
+void print_last_socket_error(const char *context_msg);
+void print_last_socket_error_b(const char *context_msg, ssize_t bytes_transferred);
 
 #ifdef __cplusplus    
 }

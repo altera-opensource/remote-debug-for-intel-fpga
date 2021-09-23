@@ -32,6 +32,8 @@
 #include <string.h>
 #include <stddef.h> // offsetof
 
+#include "intel_fpga_api.h"
+
 #include "server.h"
 #include "packet.h"
 #include "constants.h"
@@ -77,8 +79,7 @@ const SERVER_CONN SERVER_CONN_default = {
         .mgmt_rsp_data_complete = NULL,
         .has_mgmt_support = NULL,
         .set_param = NULL,
-        .get_param = NULL,
-        .server_printf = printf
+        .get_param = NULL
     },
     .loopback_mode = 0,
     .server_fd = INVALID_SOCKET,
@@ -98,8 +99,7 @@ const SERVER_HW_CALLBACKS SERVER_HW_CALLBACKS_default = {
     .mgmt_rsp_data_complete = NULL,
     .has_mgmt_support = NULL,
     .set_param = NULL,
-    .get_param = NULL,
-    .server_printf = printf
+    .get_param = NULL
 };
 const SERVER_PKT_STATS SERVER_PKT_STATS_default = { 0, 0, 0, 0 };
 const CLIENT_CONN CLIENT_CONN_default = { INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET };
@@ -116,22 +116,22 @@ void reset_buffers(SERVER_CONN *conn) {
     zero_mem(conn->buff->ctrl_tx_buff, conn->buff->ctrl_tx_buff_sz);
 }
 
-void print_last_socket_error(const char *context_msg, int(*printf_fp)(printf_format_arg, ...)) {
+void print_last_socket_error(const char *context_msg) {
     enum { ERR_MSG_BUFF_SZ = 256 };
     char err_buff[ERR_MSG_BUFF_SZ] = { 0 };
     const char *system_msg = get_last_socket_error_msg(err_buff, ERR_MSG_BUFF_SZ);
     if (system_msg != NULL) {
-        printf_fp("%s: %s\n", context_msg, system_msg);
+        fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "%s: %s\n", context_msg, system_msg);
     } else {
-        printf_fp("%s\n", context_msg);
+        fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "%s\n", context_msg);
     }
 }
 
-void print_last_socket_error_b(const char *context_msg, ssize_t bytes_transferred, int(*printf_fp)(printf_format_arg, ...)) {
+void print_last_socket_error_b(const char *context_msg, ssize_t bytes_transferred) {
     if (bytes_transferred < 0) {
-        print_last_socket_error(context_msg, printf_fp);
+        print_last_socket_error(context_msg);
     } else {
-        printf_fp("%s\n", context_msg);
+        fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "%s\n", context_msg);
     }
 }
 
@@ -155,32 +155,32 @@ RETURN_CODE bind_server_socket(SERVER_CONN *server_conn) {
     
     // Create the socket
     if ((server_conn->server_fd = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
-        print_last_socket_error("Failed to create socket", server_conn->hw_callbacks.server_printf);
+        print_last_socket_error("Failed to create socket");
         ++errors;
     }
 
     // Set some options
     if ((errors == 0) && (set_boolean_socket_option(server_conn->server_fd, SO_REUSEADDR, 1) < 0)) {
-        print_last_socket_error("Failed to set socket options", server_conn->hw_callbacks.server_printf);
+        print_last_socket_error("Failed to set socket options");
         ++errors;
     }
 
     // Bind it to PORT + Protocol
 #if STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_NIOS_INICHE
     if ((errors == 0) && (bind(server_conn->server_fd, (struct sockaddr *)(&(server_conn->server_addr)), sizeof_addr) < 0)) {
-        print_last_socket_error("Failed to bind socket", server_conn->hw_callbacks.server_printf);
+        print_last_socket_error("Failed to bind socket");
         ++errors;
     }
 #else
     if ((errors == 0) && (bind(server_conn->server_fd, (const struct sockaddr *)(&(server_conn->server_addr)), sizeof_addr) < 0)) {
-        print_last_socket_error("Failed to bind socket", server_conn->hw_callbacks.server_printf);
+        print_last_socket_error("Failed to bind socket");
         ++errors;
     }
 #endif
 
     // Tell the socket to listen for incoming connections
     if ((errors == 0) && (listen(server_conn->server_fd, MAX_LISTEN) < 0)) {
-        print_last_socket_error("Failed to listen on server socket", server_conn->hw_callbacks.server_printf);
+        print_last_socket_error("Failed to listen on server socket");
         ++errors;
     }
     
@@ -200,7 +200,7 @@ RETURN_CODE connect_client_socket(SERVER_CONN *server_conn, int handle_id, SOCKE
     char socket_fail_msg[FAIL_MSG_SIZE];
     if((*client_fd = accept(server_conn->server_fd, (struct sockaddr *)(&(server_conn->server_addr)), &sizeof_addr)) == INVALID_SOCKET) {
         snprintf(socket_fail_msg, FAIL_MSG_SIZE, "Failed to accept %s socket", sock_name);
-        print_last_socket_error(socket_fail_msg, server_conn->hw_callbacks.server_printf);
+        print_last_socket_error(socket_fail_msg);
     } else {
         if (set_tcp_no_delay(*client_fd, (use_nagle == 0) ? 1 : 0) == 0) {
             ssize_t bytes_transferred;
@@ -211,16 +211,16 @@ RETURN_CODE connect_client_socket(SERVER_CONN *server_conn, int handle_id, SOCKE
                     RETURN_CODE result;
                     if ((result = socket_send_all(*client_fd, READY_MSG, READY_MSG_LEN, 0, &bytes_transferred)) != OK) {
                         snprintf(socket_fail_msg, FAIL_MSG_SIZE, "Failed to send handle ready message for %s socket", sock_name);
-                        print_last_socket_error_b(socket_fail_msg, bytes_transferred, server_conn->hw_callbacks.server_printf);
+                        print_last_socket_error_b(socket_fail_msg, bytes_transferred);
                     }
                     return result;
                 } else {
                     socket_send_all(*client_fd, NOT_READY_MSG, NOT_READY_MSG_LEN, 0, NULL);
-                    server_conn->hw_callbacks.server_printf("Got unexpected handle ack message: %s\n\tExpected: %s\n", server_conn->buff->ctrl_rx_buff, server_conn->buff->ctrl_tx_buff);
+                    fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Got unexpected handle ack message: %s\n\tExpected: %s\n", server_conn->buff->ctrl_rx_buff, server_conn->buff->ctrl_tx_buff);
                 }
             } else {
                 snprintf(socket_fail_msg, FAIL_MSG_SIZE, "Failed to recv handle ack message for %s socket", sock_name);
-                print_last_socket_error_b(socket_fail_msg, bytes_transferred, server_conn->hw_callbacks.server_printf);
+                print_last_socket_error_b(socket_fail_msg, bytes_transferred);
             }
         }
     }
@@ -240,21 +240,21 @@ RETURN_CODE connect_client(SERVER_CONN *server_conn, CLIENT_CONN *client_conn) {
     if (server_conn->hw_callbacks.init_driver != NULL) {
         int init_driver_rc;
         if ((init_driver_rc = server_conn->hw_callbacks.init_driver(server_conn->buff->h2t_rx_buff, server_conn->buff->h2t_rx_buff_sz, server_conn->buff->mgmt_rx_buff, server_conn->buff->mgmt_rx_buff_sz)) != 0) {
-            server_conn->hw_callbacks.server_printf("Failed to initialize driver: %d\n", init_driver_rc);
+            fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Failed to initialize driver: %d\n", init_driver_rc);
             return FAILURE; // Early return if driver fails to initialize, client is rejected.
         }
     }
     
     // Connect CTRL socket
     if((client_conn->ctrl_fd = accept(server_conn->server_fd, (struct sockaddr *)(&(server_conn->server_addr)), &sizeof_addr)) == INVALID_SOCKET) {
-        print_last_socket_error("Failed to accept CTRL socket", server_conn->hw_callbacks.server_printf);
+        print_last_socket_error("Failed to accept CTRL socket");
         result = FAILURE;
     } else {
         // Send out the welcome message
         int mgmt_support = server_conn->hw_callbacks.has_mgmt_support != NULL ? server_conn->hw_callbacks.has_mgmt_support() : 0;
         generate_server_welcome_message(server_conn->buff->ctrl_tx_buff, server_conn->buff->ctrl_tx_buff_sz, mgmt_support, server_conn->buff, handle);
         if (socket_send_all(client_conn->ctrl_fd, server_conn->buff->ctrl_tx_buff, strnlen(server_conn->buff->ctrl_tx_buff, server_conn->buff->ctrl_tx_buff_sz) + 1, 0, &bytes_transferred) == FAILURE) {
-            print_last_socket_error_b("Failed to send welcome message to CTRL socket", bytes_transferred, server_conn->hw_callbacks.server_printf);
+            print_last_socket_error_b("Failed to send welcome message to CTRL socket", bytes_transferred);
             result = FAILURE;
         }
     }
@@ -265,15 +265,15 @@ RETURN_CODE connect_client(SERVER_CONN *server_conn, CLIENT_CONN *client_conn) {
             generate_expected_handle_message(server_conn->buff->ctrl_tx_buff, server_conn->buff->ctrl_tx_buff_sz, CONTROL_SOCK_NAME, handle);
             if (strncmp(server_conn->buff->ctrl_rx_buff, server_conn->buff->ctrl_tx_buff, MAX_HANDLE_RSP) != 0) {
                 socket_send_all(client_conn->ctrl_fd, NOT_READY_MSG, NOT_READY_MSG_LEN, 0, NULL);
-                server_conn->hw_callbacks.server_printf("Got unexpected handle ack message: %s\n\tExpected: %s\n", server_conn->buff->ctrl_rx_buff, server_conn->buff->ctrl_tx_buff);
+                fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Got unexpected handle ack message: %s\n\tExpected: %s\n", server_conn->buff->ctrl_rx_buff, server_conn->buff->ctrl_tx_buff);
                 result = FAILURE;
             } else {
                 if ((result = socket_send_all(client_conn->ctrl_fd, READY_MSG, READY_MSG_LEN, 0, &bytes_transferred)) != OK) {
-                    print_last_socket_error_b("Failed to send handle ready message for CTRL socket", bytes_transferred, server_conn->hw_callbacks.server_printf);
+                    print_last_socket_error_b("Failed to send handle ready message for CTRL socket", bytes_transferred);
                 }
             }
         } else {
-            print_last_socket_error_b("Failed to recv handle ack message for CTRL socket", bytes_transferred, server_conn->hw_callbacks.server_printf);
+            print_last_socket_error_b("Failed to recv handle ack message for CTRL socket", bytes_transferred);
         }
     }
 
@@ -297,7 +297,7 @@ RETURN_CODE connect_client(SERVER_CONN *server_conn, CLIENT_CONN *client_conn) {
         if (socket_send_all(client_conn->ctrl_fd, READY_MSG, READY_MSG_LEN, 0, &bytes_transferred) == OK) {
             return OK;
         } else {
-            print_last_socket_error_b("Failed to send ready message to CTRL socket", bytes_transferred, server_conn->hw_callbacks.server_printf);
+            print_last_socket_error_b("Failed to send ready message to CTRL socket", bytes_transferred);
             return FAILURE;
         }
     }
@@ -309,35 +309,35 @@ RETURN_CODE close_client_conn(CLIENT_CONN *client_conn, SERVER_CONN *server_conn
     if (client_conn->ctrl_fd != INVALID_SOCKET) {
         set_linger_socket_option(client_conn->ctrl_fd, 1, 0);
         if (close_socket_fd(client_conn->ctrl_fd) != 0) {
-            print_last_socket_error("Failed to close CONTROL socket", server_conn->hw_callbacks.server_printf);
+            print_last_socket_error("Failed to close CONTROL socket");
             ++errors;
         }
     }
     if (client_conn->mgmt_fd != INVALID_SOCKET) {
         set_linger_socket_option(client_conn->mgmt_fd, 1, 0);
         if (close_socket_fd(client_conn->mgmt_fd) != 0) {
-            print_last_socket_error("Failed to close MGMT socket", server_conn->hw_callbacks.server_printf);
+            print_last_socket_error("Failed to close MGMT socket");
             ++errors;
         }
     }
     if (client_conn->mgmt_rsp_fd != INVALID_SOCKET) {
         set_linger_socket_option(client_conn->mgmt_rsp_fd, 1, 0);
         if (close_socket_fd(client_conn->mgmt_rsp_fd) != 0) {
-            print_last_socket_error("Failed to close MGMT RSP socket", server_conn->hw_callbacks.server_printf);
+            print_last_socket_error("Failed to close MGMT RSP socket");
             ++errors;
         }
     }
     if (client_conn->h2t_data_fd != INVALID_SOCKET) {
         set_linger_socket_option(client_conn->h2t_data_fd, 1, 0);
         if (close_socket_fd(client_conn->h2t_data_fd) != 0) {
-            print_last_socket_error("Failed to close H2T_DATA socket", server_conn->hw_callbacks.server_printf);
+            print_last_socket_error("Failed to close H2T_DATA socket");
             ++errors;
         }
     }
     if (client_conn->t2h_data_fd != INVALID_SOCKET) {
         set_linger_socket_option(client_conn->t2h_data_fd, 1, 0);
         if (close_socket_fd(client_conn->t2h_data_fd) != 0) {
-            print_last_socket_error("Failed to close T2H_DATA socket", server_conn->hw_callbacks.server_printf);
+            print_last_socket_error("Failed to close T2H_DATA socket");
             ++errors;
         }
     }
@@ -468,11 +468,11 @@ RETURN_CODE process_control_message(CLIENT_CONN *client_conn, SERVER_CONN *serve
             result = socket_send_all(client_conn->ctrl_fd, UNRECOGNIZED_CMD_RSP, UNRECOGNIZED_CMD_RSP_LEN, 0, &bytes_transferred);
         }
         if (result != OK) {
-            print_last_socket_error_b("Failed to send CTRL message response", bytes_transferred, server_conn->hw_callbacks.server_printf);
+            print_last_socket_error_b("Failed to send CTRL message response", bytes_transferred);
         }
         return result;
     } else {
-        print_last_socket_error_b("Failed to recv CTRL message", bytes_transferred, server_conn->hw_callbacks.server_printf);
+        print_last_socket_error_b("Failed to recv CTRL message", bytes_transferred);
         return FAILURE;
     }
 }
@@ -493,7 +493,7 @@ RETURN_CODE update_curr_h2t_header(CLIENT_CONN *client_conn, SERVER_CONN *server
         ssize_t bytes_recvd;
         RETURN_CODE result = socket_recv_accumulate(client_conn->h2t_data_fd, server_conn->buff->h2t_header_buff, SIZEOF_PACKET_GUARDBAND + SIZEOF_H2T_PACKET_HEADER, 0, &bytes_recvd);
         if (result != OK) {
-            print_last_socket_error_b("Failed to recv H2T header", bytes_recvd, server_conn->hw_callbacks.server_printf);
+            print_last_socket_error_b("Failed to recv H2T header", bytes_recvd);
         }
         return result;
     }
@@ -538,14 +538,14 @@ RETURN_CODE process_h2t_data(CLIENT_CONN *client_conn, SERVER_CONN *server_conn)
                     if ((has_error = socket_send_all(client_conn->t2h_data_fd, server_conn->buff->h2t_header_buff, SIZEOF_PACKET_GUARDBAND + SIZEOF_H2T_PACKET_HEADER, 0, &bytes_recvd)) == OK) {
                         // Send the payload
                         if ((has_error = socket_send_all_t2h_data(client_conn->t2h_data_fd, h2t_buff, bytes_to_transfer, 0, &bytes_recvd)) != OK) {
-                            print_last_socket_error_b("Failed to send loopback T2H data", bytes_recvd, server_conn->hw_callbacks.server_printf);
+                            print_last_socket_error_b("Failed to send loopback T2H data", bytes_recvd);
                         }
                     } else {
-                        print_last_socket_error_b("Failed to send loopback T2H header", bytes_recvd, server_conn->hw_callbacks.server_printf);
+                        print_last_socket_error_b("Failed to send loopback T2H header", bytes_recvd);
                     }
                 }
             } else {
-                print_last_socket_error_b("Failed to recv H2T data", bytes_recvd, server_conn->hw_callbacks.server_printf);
+                print_last_socket_error_b("Failed to recv H2T data", bytes_recvd);
             }
         } else {
             // Wait for buffer to be available!
@@ -561,7 +561,7 @@ RETURN_CODE update_curr_mgmt_header(CLIENT_CONN *client_conn, SERVER_CONN *serve
         ssize_t bytes_recvd;
         RETURN_CODE result = socket_recv_accumulate(client_conn->mgmt_fd, server_conn->buff->mgmt_header_buff, SIZEOF_PACKET_GUARDBAND + SIZEOF_MGMT_PACKET_HEADER, 0, &bytes_recvd);
         if (result != OK) {
-            print_last_socket_error_b("Failed to recv MGMT header", bytes_recvd, server_conn->hw_callbacks.server_printf);
+            print_last_socket_error_b("Failed to recv MGMT header", bytes_recvd);
         }
         return result;
     }
@@ -606,14 +606,14 @@ RETURN_CODE process_mgmt_data(CLIENT_CONN *client_conn, SERVER_CONN *server_conn
                     if ((has_error = socket_send_all(client_conn->mgmt_rsp_fd, server_conn->buff->mgmt_header_buff, SIZEOF_PACKET_GUARDBAND + SIZEOF_MGMT_PACKET_HEADER, 0, &bytes_recvd)) == OK) {
                         // Send the payload
                         if ((has_error = socket_send_all(client_conn->mgmt_rsp_fd, mgmt_buff, bytes_to_transfer, 0, &bytes_recvd)) != OK) {
-                            print_last_socket_error_b("Failed to send loopback MGMT RSP data", bytes_recvd, server_conn->hw_callbacks.server_printf);
+                            print_last_socket_error_b("Failed to send loopback MGMT RSP data", bytes_recvd);
                         }
                     } else {
-                        print_last_socket_error_b("Failed to send loopback MGMT RSP header", bytes_recvd, server_conn->hw_callbacks.server_printf);
+                        print_last_socket_error_b("Failed to send loopback MGMT RSP header", bytes_recvd);
                     }
                 }
             } else {
-                print_last_socket_error_b("Failed to recv MGMT data", bytes_recvd, server_conn->hw_callbacks.server_printf);
+                print_last_socket_error_b("Failed to recv MGMT data", bytes_recvd);
             }
         } else {
             // Wait for buffer to be available!
@@ -655,7 +655,7 @@ RETURN_CODE process_t2h_data(CLIENT_CONN *client_conn, SERVER_CONN *server_conn)
             }
         }
         if (has_error != OK) {
-            print_last_socket_error_b("An error occurred sending T2H data", bytes_sent, server_conn->hw_callbacks.server_printf);
+            print_last_socket_error_b("An error occurred sending T2H data", bytes_sent);
         }
     }
 
@@ -693,7 +693,7 @@ RETURN_CODE process_mgmt_rsp_data(CLIENT_CONN *client_conn, SERVER_CONN *server_
             }
         }
         if (has_error != OK) {
-            print_last_socket_error_b("An error occurred sending MGMT RSP data", bytes_sent, server_conn->hw_callbacks.server_printf);
+            print_last_socket_error_b("An error occurred sending MGMT RSP data", bytes_sent);
         }
     }
 
@@ -703,7 +703,7 @@ RETURN_CODE process_mgmt_rsp_data(CLIENT_CONN *client_conn, SERVER_CONN *server_
 void reject_client(SERVER_CONN *server_conn) {
     SOCKET sock_fd = INVALID_SOCKET;
     if((sock_fd = accept(server_conn->server_fd, (struct sockaddr *)(&(server_conn->server_addr)), &sizeof_addr)) == INVALID_SOCKET) {
-        print_last_socket_error("Failed to accept additional client", server_conn->hw_callbacks.server_printf);
+        print_last_socket_error("Failed to accept additional client");
     } else {
 #if STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_WINDOWS
         int flags = 0;
@@ -712,8 +712,10 @@ void reject_client(SERVER_CONN *server_conn) {
 #endif
         size_t reject_msg_len = 12;
         if (send(sock_fd, REJECT_MSG, reject_msg_len, flags) < 0) {
-            print_last_socket_error("Failed to send rejection message to additional client", server_conn->hw_callbacks.server_printf);
+            print_last_socket_error("Failed to send rejection message to additional client");
         }
+
+        fpga_msg_printf(FPGA_MSG_PRINTF_WARNING, "Rejected one connection request because only one connection has already been established.");
 
         // Prevent TIME_WAIT
         set_linger_socket_option(sock_fd, 1, 0);
@@ -772,7 +774,7 @@ void handle_client(SERVER_CONN *server_conn, CLIENT_CONN *client_conn) {
         to.tv_sec = 1;
         to.tv_usec = 0;
         if (select((int)max_fd, &read_fds, &write_fds, &except_fds, &to) < 0) {
-            print_last_socket_error("Select failure", server_conn->hw_callbacks.server_printf);
+            print_last_socket_error("Select failure");
             break;
         }
         
@@ -780,7 +782,7 @@ void handle_client(SERVER_CONN *server_conn, CLIENT_CONN *client_conn) {
         char disconnect_client = 0;
         for (int i = 0; i < NUM_FDS; ++i) {
             if (FD_ISSET(all_fds[i], &except_fds)) {
-                server_conn->hw_callbacks.server_printf("Exception found on socket: %s\n", all_fd_names[i]);
+                fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Exception found on socket: %s\n", all_fd_names[i]);
                 disconnect_client = 1;
                 break;
             }
@@ -857,19 +859,19 @@ RETURN_CODE initialize_server(unsigned short port, SERVER_CONN *server_conn, con
     sizeof_addr = sizeof(server_conn->server_addr);
 
     if (bind_server_socket(server_conn) != OK) {
-        server_conn->hw_callbacks.server_printf("Failed to bind server socket!\n");
+        fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Failed to bind server socket!\n");
         return FAILURE;
     }
 
     // If a request to bind to any available port, take note of which port was assigned by the kernel
     if (port == 0) {
         if (getsockname(server_conn->server_fd, (struct sockaddr *)(&(server_conn->server_addr)), &sizeof_addr) < 0) {
-            print_last_socket_error("getsockname failed", server_conn->hw_callbacks.server_printf);
+            print_last_socket_error("getsockname failed");
         }
     }
 
     unsigned short port_used = ntohs(server_conn->server_addr.sin_port);
-    server_conn->hw_callbacks.server_printf("Server socket is listening on port: %d\n", port_used);
+    fpga_msg_printf(FPGA_MSG_PRINTF_INFO, "Server socket is listening on port: %d\n", port_used);
 
     // Write out the port used.  This is especially useful when an ephermal port is used.
 #if STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_WINDOWS || STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_LINUX
@@ -879,7 +881,7 @@ RETURN_CODE initialize_server(unsigned short port, SERVER_CONN *server_conn, con
             fprintf(port_fp, "%d", port_used);
             fclose(port_fp);
         } else {
-            server_conn->hw_callbacks.server_printf("Failed to save out port file: %s\n", port_filename);
+            fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Failed to save out port file: %s\n", port_filename);
         }
     }
 #endif
@@ -903,7 +905,7 @@ void server_main(SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn) {
             handle_client(server_conn, &client_conn);
         } else {
             if (terminate) break;
-            server_conn->hw_callbacks.server_printf("Rejected remote client.\n");
+            fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Rejected remote client.\n");
         }
 
         close_client_conn(&client_conn, server_conn);
@@ -913,7 +915,7 @@ void server_main(SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn) {
     // Close the listening socket
     set_linger_socket_option(server_conn->server_fd, 1, 0);
     if(close_socket_fd(server_conn->server_fd))
-	    server_conn->hw_callbacks.server_printf("Error closing server socket.\n");
+	    fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Error closing server socket.\n");
     else
         server_conn->server_fd = INVALID_SOCKET;
 }
