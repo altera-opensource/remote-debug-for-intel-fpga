@@ -69,34 +69,34 @@ int init_driver() {
         }
 
 #ifdef MMIO_LOG
-    g_mmio_log_f = fopen("mmlink_mmio_log.csv", "w");
+        g_mmio_log_f = fopen("mmlink_mmio_log.csv", "w");
+        
+        ::setbuf(g_mmio_log_f, NULL);
+        ::fprintf(g_mmio_log_f, "CSR base_addr:64'h%llx\n"
+                                "H2T base_addr:64'h%llx\n"
+                                "T2H base_addr:64'h%llx\n"
+                                "line_no,function,type,base_addr,offset,value\n",
+                                g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR, g_std_dbg_ip_info.H2T_MEM_BASE_ADDR, g_std_dbg_ip_info.T2H_MEM_BASE_ADDR);
+#endif
     
-    ::setbuf(g_mmio_log_f, NULL);
-    ::fprintf(g_mmio_log_f, "CSR base_addr:64'h%llx\n"
-                            "H2T base_addr:64'h%llx\n"
-                            "T2H base_addr:64'h%llx\n"
-                            "line_no,function,type,base_addr,offset,value\n",
-                            g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR, g_std_dbg_ip_info.H2T_MEM_BASE_ADDR, g_std_dbg_ip_info.T2H_MEM_BASE_ADDR);
-    #endif
-    
-    if (!g_dbg_info_set) {
-        return INIT_ERROR_CODE_MISSING_INFO;
-    }
-    if (check_version_and_type() != 0) {
-        return INIT_ERROR_CODE_INCOMPATIBLE_IP;
-    }
-    
-    assert_h2t_t2h_reset();
-    g_h2t_descriptor_write_idx = 0;
-    g_h2t_descriptor_read_idx = 0;
-    g_mgmt_descriptor_write_idx = 0;
-    g_mgmt_descriptor_read_idx = 0;
-    g_h2t_descriptor_slots_available = (unsigned short)fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_H2T_AVAILABLE_SLOTS);
-    g_mgmt_descriptor_slots_available = (unsigned short)fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_MGMT_AVAILABLE_SLOTS);
-    g_t2h_sop = 1;
-    g_mgmt_rsp_sop = 1;
-    cbuff_init(&g_h2t_rx_cbuff, g_std_dbg_ip_info.H2T_MEM_BASE_ADDR, g_std_dbg_ip_info.H2T_MEM_SZ);
-    cbuff_init(&g_mgmt_rx_cbuff, g_std_dbg_ip_info.MGMT_MEM_BASE_ADDR, g_std_dbg_ip_info.MGMT_MEM_SZ);
+        if (!g_dbg_info_set) {
+            return INIT_ERROR_CODE_MISSING_INFO;
+        }
+        if (check_version_and_type() != 0) {
+            return INIT_ERROR_CODE_INCOMPATIBLE_IP;
+        }
+        
+        assert_h2t_t2h_reset();
+        g_h2t_descriptor_write_idx = 0;
+        g_h2t_descriptor_read_idx = 0;
+        g_mgmt_descriptor_write_idx = 0;
+        g_mgmt_descriptor_read_idx = 0;
+        g_h2t_descriptor_slots_available = (unsigned short)fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_H2T_AVAILABLE_SLOTS);
+        g_mgmt_descriptor_slots_available = (unsigned short)fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_MGMT_AVAILABLE_SLOTS);
+        g_t2h_sop = 1;
+        g_mgmt_rsp_sop = 1;
+        cbuff_init(&g_h2t_rx_cbuff, g_std_dbg_ip_info.H2T_MEM_BASE_ADDR, g_std_dbg_ip_info.H2T_MEM_SZ);
+        cbuff_init(&g_mgmt_rx_cbuff, g_std_dbg_ip_info.MGMT_MEM_BASE_ADDR, g_std_dbg_ip_info.MGMT_MEM_SZ);
     }
     else
     {
@@ -310,6 +310,13 @@ int check_version_and_type() {
     unsigned long type = (unsigned long)type_version;
     unsigned long version = (unsigned long)(type_version >> 32);
     if ((type != SUPPORTED_TYPE) || (version != SUPPORTED_VERSION)) {
+        if (type != SUPPORTED_TYPE) {
+            fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Signature is not read from hardware correctly.  Expect 0x%x, got 0x%x", SUPPORTED_TYPE, type);
+        }
+        if (version != SUPPORTED_VERSION)
+        {
+            fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Hardware version is not supported.  Expect %d, got %d", SUPPORTED_VERSION, version);
+        }
         return -1;
     } else {
         return 0;

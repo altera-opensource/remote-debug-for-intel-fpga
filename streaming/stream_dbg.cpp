@@ -111,7 +111,7 @@ int StreamingDebug::run(const char *address, int port)
 
     if (initialize_server((unsigned short)port, &server_conn, SERVER_PORT_FILE) == OK)
     {
-      server_main(MULTIPLE_CLIENTS, &server_conn);
+      ret = server_main(MULTIPLE_CLIENTS, &server_conn);
     }
     else
     {

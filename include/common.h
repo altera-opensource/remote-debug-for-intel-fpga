@@ -30,7 +30,8 @@
 // Enumerations
 typedef enum {
     OK,
-    FAILURE
+    FAILURE,
+    INIT_ERR
 } RETURN_CODE;
 
 #define MAX_MACRO(a,b) (((a)>(b))?(a):(b))

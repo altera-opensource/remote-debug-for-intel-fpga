@@ -241,7 +241,7 @@ RETURN_CODE connect_client(SERVER_CONN *server_conn, CLIENT_CONN *client_conn) {
         int init_driver_rc;
         if ((init_driver_rc = server_conn->hw_callbacks.init_driver(server_conn->buff->h2t_rx_buff, server_conn->buff->h2t_rx_buff_sz, server_conn->buff->mgmt_rx_buff, server_conn->buff->mgmt_rx_buff_sz)) != 0) {
             fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Failed to initialize driver: %d\n", init_driver_rc);
-            return FAILURE; // Early return if driver fails to initialize, client is rejected.
+            return INIT_ERR; // Early return if driver fails to initialize, client is rejected.
         }
     }
     
@@ -896,20 +896,27 @@ void server_terminate()
     terminate = 1;
 }
 
-void server_main(SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn) {    
+int server_main(SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn) {
+    int rc = 0;
     // Main loop of server app
     do {
         reset_buffers(server_conn);
         CLIENT_CONN client_conn = CLIENT_CONN_default;
-        if (connect_client(server_conn, &client_conn) == OK) {
+        rc = connect_client(server_conn, &client_conn);
+        if (rc == OK)
+        {
             handle_client(server_conn, &client_conn);
-        } else {
-            if (terminate) break;
+        }
+        else
+        {
             fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Rejected remote client.\n");
         }
 
         close_client_conn(&client_conn, server_conn);
-        if (terminate) break;
+        if (terminate || rc == INIT_ERR)
+        {
+            break;
+        }
     } while (lifespan == MULTIPLE_CLIENTS);
 
     // Close the listening socket
@@ -918,4 +925,6 @@ void server_main(SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn) {
 	    fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Error closing server socket.\n");
     else
         server_conn->server_fd = INVALID_SOCKET;
+
+    return rc;
 }
