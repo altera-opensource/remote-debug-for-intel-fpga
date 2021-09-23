@@ -28,13 +28,13 @@
 #include <cstdint>
 #include <cstdio>
 
-class remote_dbg
+class IRemoteDebug
 {
 public:
-  remote_dbg() = default;
-  remote_dbg(const remote_dbg&) = delete;
-  remote_dbg& operator=(const remote_dbg&) = delete;
-  virtual ~remote_dbg() = default;
+  IRemoteDebug() = default;
+  IRemoteDebug(const IRemoteDebug&) = delete;
+  IRemoteDebug& operator=(const IRemoteDebug&) = delete;
+  virtual ~IRemoteDebug() = default;
   virtual int run(const char *address, int port) = 0;
   virtual void terminate(){}
 

@@ -81,7 +81,7 @@ ST_DBG_IP_DESIGN_INFO get_design_info() {
 }
 
 
-int stream_dbg::run(const char *address, int port)
+int StreamingDebug::run(const char *address, int port)
 {
   int ret = 0;
 
@@ -123,7 +123,7 @@ int stream_dbg::run(const char *address, int port)
   return ret;
 }
 
-void stream_dbg::terminate()
+void StreamingDebug::terminate()
 {
   fpga_close(0);
   server_terminate();

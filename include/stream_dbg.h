@@ -28,11 +28,11 @@
 
 #include "remote_dbg.h"
 
-class stream_dbg : public remote_dbg
+class StreamingDebug : public IRemoteDebug
 {
 public:
-  stream_dbg(){}
-  virtual ~stream_dbg(){}
+  StreamingDebug(){}
+  virtual ~StreamingDebug(){}
   int run(const char *address, int port) override;
   void terminate() override;
  
