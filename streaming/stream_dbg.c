@@ -31,6 +31,7 @@
 #include "intel_fpga_api.h"
 
 #define SERVER_PORT_FILE ".intel_reserved_debug_server.port"
+
 enum {
   CTRL_RX_BUFF_SZ = 512,
   CTRL_TX_BUFF_SZ = 512
@@ -38,7 +39,7 @@ enum {
 static char g_ctrl_rx_buff[CTRL_RX_BUFF_SZ] = {0};
 static char g_ctrl_tx_buff[CTRL_TX_BUFF_SZ] = {0};
 
-SERVER_HW_CALLBACKS get_hw_callbacks() {
+static SERVER_HW_CALLBACKS get_hw_callbacks() {
   SERVER_HW_CALLBACKS result = SERVER_HW_CALLBACKS_default;
   result.init_driver = init_driver;
   result.has_mgmt_support = get_mgmt_support;
@@ -59,7 +60,7 @@ SERVER_HW_CALLBACKS get_hw_callbacks() {
 
 // These addresses are of those that should be used with FPGA MMIO to gain access
 // to H2T, T2H, etc memories attached to ST DBG IP
-ST_DBG_IP_DESIGN_INFO get_design_info(size_t h2t_t2h_mem_size)
+static ST_DBG_IP_DESIGN_INFO get_design_info(size_t h2t_t2h_mem_size)
 {
   ST_DBG_IP_DESIGN_INFO result;
   result.ST_DBG_IP_CSR_BASE_ADDR = ST_DBG_IF_BASE;
@@ -81,12 +82,10 @@ ST_DBG_IP_DESIGN_INFO get_design_info(size_t h2t_t2h_mem_size)
   return result;
 }
 
-int StreamingDebug::run(size_t h2t_t2h_mem_size, const char *address, int port)
+int start_st_dbg_transport_server_over_tcpip(size_t h2t_t2h_mem_size, int port)
 {
   int ret = 0;
 
-  (void)address;
-  // Implement Nathan server here...
   ST_DBG_IP_DESIGN_INFO design_info = get_design_info(h2t_t2h_mem_size);
   set_design_info(design_info);
 
@@ -123,9 +122,8 @@ int StreamingDebug::run(size_t h2t_t2h_mem_size, const char *address, int port)
   return ret;
 }
 
-void StreamingDebug::terminate()
+void terminate_st_dbg_transport_server_over_tcpip()
 {
-  fpga_close(0);
   server_terminate();
 }
 

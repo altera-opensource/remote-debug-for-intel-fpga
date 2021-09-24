@@ -83,6 +83,22 @@ static long parse_integer_arg(const char *name);
 static int run_etherlink(const struct EtherlinkCommandLine *etherlink_cmdline);
 static void install_sigint_handler();
 
+class StreamingDebug : public IRemoteDebug
+{
+public:
+    StreamingDebug(){}
+    virtual ~StreamingDebug(){}
+    int run(size_t h2t_t2h_mem_size, const char * /*unused*/, int port) override
+    {
+        return start_st_dbg_transport_server_over_tcpip(h2t_t2h_mem_size, port);
+    }
+    void terminate() override
+    {
+        terminate_st_dbg_transport_server_over_tcpip();
+    }
+
+};
+
 int main( int argc, char** argv )
 {
     EtherlinkCommandLine etherlink_cmdline = {4096, 0, {0,}};
