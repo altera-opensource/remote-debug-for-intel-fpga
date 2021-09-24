@@ -277,9 +277,9 @@ void mgmt_rsp_data_complete()
 void set_loopback_mode(int val) {
     uint32_t rd = fpga_read_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK);
     if (val == 1) {
-        fpga_write_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, rd | ST_DBG_IP_CONFIG_LOOPBACK_FIELD);
+        fpga_write_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, rd | ST_DBG_IP_CONFIG_LOOPBACK_FIELD | ST_DBG_IP_CONFIG_H2T_T2H_RESET_FIELD);
     } else {
-        fpga_write_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, rd & ~ST_DBG_IP_CONFIG_LOOPBACK_FIELD);
+        fpga_write_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, (rd & ~ST_DBG_IP_CONFIG_LOOPBACK_FIELD) | ST_DBG_IP_CONFIG_H2T_T2H_RESET_FIELD);
     }
 }
 
