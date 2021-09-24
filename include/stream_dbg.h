@@ -33,7 +33,7 @@ class StreamingDebug : public IRemoteDebug
 public:
   StreamingDebug(){}
   virtual ~StreamingDebug(){}
-  int run(const char *address, int port) override;
+  int run(size_t h2t_t2h_mem_size, const char *address, int port) override;
   void terminate() override;
  
 };

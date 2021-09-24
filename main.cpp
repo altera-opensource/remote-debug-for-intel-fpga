@@ -44,10 +44,14 @@
 static void show_help(const char *program)
 {
     printf(
-        "Usage: %s [--uio-driver-path=<path>] [--port=<port>] [--ip=<ip address>]\n\n"
+        "Usage:\n"
+        " %s [--uio-driver-path=<path>] [--start-address] [--h2t-t2h-mem-size] [--port=<port>] [--ip=<ip address>]\n"
+        " %s --version\n"
+        " %s --help\n\n"
         "Optional arguments:\n"
         " --uio-driver-path=<path>, -u <path>       UIO driver path (default: /dev/uio0)\n"
-        " --start-address=<address>, -s <address>   JTAG over protocol interface starting address within this UIO driver (default: 0)\n"
+        " --start-address=<address>, -s <address>   JTAG-Over-Protocol interface starting address within this UIO driver (default: 0)\n"
+        " --h2t-t2h-mem-size=<size>, -m <size>      JTAG-Over-Protocol H2T/T2H Memory Size in bytes (default: 4096)\n"
         " --port=<port>, -p <port>                  listening port (default: 0)\n"
         " --ip=<ip address>, -i <ip address>        IP address to bind (default: 0.0.0.0)\n"
         " --version, -v                             print version and exit\n"
@@ -56,7 +60,7 @@ static void show_help(const char *program)
         "Note:\n"
         " In the device tree, the address span of the whole JTAP over protocol should be binded into the specified UIO driver.\n"
         " Typically, the base address starts at 0x0.\n\n",
-        program);
+        program, program, program);
 }
 
 static IRemoteDebug *s_etherlink_server = nullptr;
@@ -69,8 +73,9 @@ enum
 
 struct  EtherlinkCommandLine
 {
-    int      port;
-    char     ip[IP_MAX_STR_LEN+1];
+    size_t  h2t_t2h_mem_size;
+    int     port;
+    char    ip[IP_MAX_STR_LEN+1];
 };
 
 static int parse_cmd_args(EtherlinkCommandLine *etherlink_cmdline, int argc, char *argv[]);
@@ -80,7 +85,7 @@ static void install_sigint_handler();
 
 int main( int argc, char** argv )
 {
-    EtherlinkCommandLine etherlink_cmdline = {0, {0,}};
+    EtherlinkCommandLine etherlink_cmdline = {4096, 0, {0,}};
     int rc = parse_cmd_args(&etherlink_cmdline, argc, argv);
     if ( rc ) {
         printf("ERROR: Error scanning command line; exiting\n");
@@ -89,8 +94,9 @@ int main( int argc, char** argv )
     }
 
     printf("INFO: Etherlink Server Configuration:\n");
-    printf("INFO:    Listening Port   : %d\n", etherlink_cmdline.port);
-    printf("INFO:    IP Address       : %s\n", etherlink_cmdline.ip);
+    printf("INFO:    H2T/T2H Memory Size  : %ld\n", etherlink_cmdline.h2t_t2h_mem_size);
+    printf("INFO:    Listening Port       : %d\n", etherlink_cmdline.port);
+    printf("INFO:    IP Address           : %s\n", etherlink_cmdline.ip);
 
     if(fpga_platform_init(argc, (const char **)argv) == false)
     {
@@ -119,7 +125,7 @@ int run_etherlink(const struct EtherlinkCommandLine *etherlink_cmdline )
 
     s_etherlink_server = new StreamingDebug();
     if (s_etherlink_server) {
-        res = s_etherlink_server->run(etherlink_cmdline->ip, etherlink_cmdline->port);
+        res = s_etherlink_server->run(etherlink_cmdline->h2t_t2h_mem_size, etherlink_cmdline->ip, etherlink_cmdline->port);
         delete s_etherlink_server;
         s_etherlink_server = nullptr;
     }
@@ -136,12 +142,12 @@ int parse_cmd_args(EtherlinkCommandLine *etherlink_cmdline, int argc, char *argv
     const char *GETOPT_STRING = "hp:i:v";
 
     struct option longopts[] = {
-        { "help",        no_argument,       NULL, 'h' },
-        { "version",     no_argument,       NULL, 'v' },
-        { "port",        required_argument, NULL, 'p' },
-        { "ip",          required_argument, NULL, 'i' },
-        { 0,             0,                 0,    0   }
-    };
+        {"help", no_argument, NULL, 'h'},
+        {"version", no_argument, NULL, 'v'},
+        {"h2t-t2h-mem-size", required_argument, NULL, 'm'},
+        {"port", required_argument, NULL, 'p'},
+        {"ip", required_argument, NULL, 'i'},
+        {0, 0, 0, 0}};
 
     opterr = 0; // Suppress stderr output from getopt_long upon unrecognized options
     optind = 0; // Reset getopt_long position.
@@ -167,9 +173,14 @@ int parse_cmd_args(EtherlinkCommandLine *etherlink_cmdline, int argc, char *argv
                 return -2;
                 break;
 
+            case 'm':
+                // H2T/T2H Mem Size
+                etherlink_cmdline->h2t_t2h_mem_size = parse_integer_arg("h2t-t2h-mem-size");
+                break;
+
             case 'p':
                 // TCP Port
-                etherlink_cmdline->port = parse_integer_arg("Port");
+                etherlink_cmdline->port = parse_integer_arg("port");
                 break;
 
             case 'i':

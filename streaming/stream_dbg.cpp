@@ -59,13 +59,14 @@ SERVER_HW_CALLBACKS get_hw_callbacks() {
 
 // These addresses are of those that should be used with FPGA MMIO to gain access
 // to H2T, T2H, etc memories attached to ST DBG IP
-ST_DBG_IP_DESIGN_INFO get_design_info() {
+ST_DBG_IP_DESIGN_INFO get_design_info(size_t h2t_t2h_mem_size)
+{
   ST_DBG_IP_DESIGN_INFO result;
   result.ST_DBG_IP_CSR_BASE_ADDR = ST_DBG_IF_BASE;
-  result.H2T_MEM_BASE_ADDR = H2T_MEM_BASE;
-  result.H2T_MEM_SZ = H2T_MEM_SPAN;
-  result.T2H_MEM_BASE_ADDR = T2H_MEM_BASE;
-  result.T2H_MEM_SZ = T2H_MEM_SPAN;
+  result.H2T_MEM_BASE_ADDR = JOP_MEM_BASE;
+  result.H2T_MEM_SZ = h2t_t2h_mem_size;
+  result.T2H_MEM_BASE_ADDR = JOP_MEM_BASE + h2t_t2h_mem_size;
+  result.T2H_MEM_SZ = h2t_t2h_mem_size;
 #if ENABLE_MGMT != 0
   result.MGMT_MEM_BASE_ADDR = MGMT_MEM_BASE;
   result.MGMT_MEM_SZ = MGMT_MEM_SPAN;
@@ -80,14 +81,13 @@ ST_DBG_IP_DESIGN_INFO get_design_info() {
   return result;
 }
 
-
-int StreamingDebug::run(const char *address, int port)
+int StreamingDebug::run(size_t h2t_t2h_mem_size, const char *address, int port)
 {
   int ret = 0;
 
   (void)address;
   // Implement Nathan server here...
-  ST_DBG_IP_DESIGN_INFO design_info = get_design_info();
+  ST_DBG_IP_DESIGN_INFO design_info = get_design_info(h2t_t2h_mem_size);
   set_design_info(design_info);
 
   SERVER_BUFFERS buffers = SERVER_BUFFERS_default;
