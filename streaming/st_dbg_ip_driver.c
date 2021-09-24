@@ -55,6 +55,11 @@ static CIRCLE_BUFF g_h2t_rx_cbuff;
 static CIRCLE_BUFF g_mgmt_rx_cbuff;
 
 int init_driver() {
+
+#if !defined(FPGA_PLATFORM_HAS_NATIVE_MMIO_READ_32) || !defined(FPGA_PLATFORM_HAS_NATIVE_MMIO_WRITE_32)
+    fpga_throw_runtime_exception(__FUNCTION__, __FILE__, __LINE__, "lack of native 32-bit operation for the stream debug driver.");
+#endif
+
     int ret = 0;
     int num_interface = fpga_get_num_of_interfaces();
     if (num_interface == 1)
