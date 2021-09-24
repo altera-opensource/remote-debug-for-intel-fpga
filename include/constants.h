@@ -24,8 +24,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,  EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef STI_NOSYS_PROT_CONSTANTS_H_INCLUDED
-#define STI_NOSYS_PROT_CONSTANTS_H_INCLUDED
+#pragma once
 
 #include <stddef.h>
 
@@ -115,5 +114,3 @@ extern const size_t MGMT_SUPPORT_PARAM_LEN;
 #ifdef __cplusplus    
 }
 #endif
-
-#endif //STI_NOSYS_PROT_CONSTANTS_H_INCLUDED

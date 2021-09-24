@@ -24,8 +24,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,  EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef STI_NOSYS_PROT_COMMON_H_INCLUDED
-#define STI_NOSYS_PROT_COMMON_H_INCLUDED
+#pragma once
 
 // Enumerations
 typedef enum {
@@ -53,5 +52,3 @@ int get_random_id();
 #ifdef __cplusplus
 }
 #endif
-
-#endif //STI_NOSYS_PROT_COMMON_H_INCLUDED

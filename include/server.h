@@ -24,8 +24,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,  EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef STI_NOSYS_PROT_SERVER_H_INCLUDED
-#define STI_NOSYS_PROT_SERVER_H_INCLUDED
+#pragma once
+
 
 #include "sockets.h"
 #include "packet.h"
@@ -198,4 +198,5 @@ void print_last_socket_error_b(const char *context_msg, ssize_t bytes_transferre
 }
 #endif
 
-#endif //STI_NOSYS_PROT_SERVER_H_INCLUDED
+#pragma once
+
