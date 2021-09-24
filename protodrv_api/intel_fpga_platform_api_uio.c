@@ -486,8 +486,8 @@ void uio_print_configuration()
     fpga_msg_printf( FPGA_MSG_PRINTF_INFO, "   Driver Path: %s", s_uio_drv_path );
     fpga_msg_printf( FPGA_MSG_PRINTF_INFO, "   Address Span: %ld", s_uio_addr_span );
     fpga_msg_printf( FPGA_MSG_PRINTF_INFO, "   Start Address: 0x%lX", s_uio_start_addr );
-    fpga_msg_printf( FPGA_MSG_PRINTF_INFO, "   Single Component Operation Model: %s", s_uio_single_component_mode ? "Yes" : "No" );
-    
+    // TODO: no way to disable "Single Component Operation Model" for now.  Don't print this info.
+    // fpga_msg_printf( FPGA_MSG_PRINTF_INFO, "   Single Component Operation Model: %s", s_uio_single_component_mode ? "Yes" : "No" );
 }
 
 bool uio_open_driver()
