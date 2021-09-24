@@ -58,6 +58,8 @@ static void uio_fpga_platform_default_runtime_exception_handler(const char *func
 FPGA_MSG_PRINTF                 g_uio_fpga_platform_printf = uio_fpga_platform_default_printf;
 FPGA_RUNTIME_EXCEPTION_HANDLER  g_uio_fpga_platform_runtime_exception_handler = uio_fpga_platform_default_runtime_exception_handler;
 
+int g_uio_show_dbg_msg = 0;
+
 static char *s_uio_drv_path = "/dev/uio0";
 static size_t s_uio_addr_span = 0;
 static int s_uio_single_component_mode = 1;
@@ -275,14 +277,14 @@ void fpga_platform_cleanup()
 void uio_parse_args(unsigned int argc, const char *argv[])
 {
     static struct option long_options[] =
-    {
-        {"uio-driver-path",  required_argument, 0, 'p'},
-        {"start-address",  required_argument, 0, 'a'},
-        {"address-span",  required_argument, 0, 's'},
-        {"single-component-mode", no_argument,  &s_uio_single_component_mode, 'c'},
-        {0, 0, 0, 0}
-    };
-    
+        {
+            {"uio-driver-path", required_argument, 0, 'p'},
+            {"start-address", required_argument, 0, 'a'},
+            {"address-span", required_argument, 0, 's'},
+            {"show-dbg-msg", no_argument, &g_uio_show_dbg_msg, 'd'},
+            {"single-component-mode", no_argument, &s_uio_single_component_mode, 'c'},
+            {0, 0, 0, 0}};
+
     int option_index = 0;
     int c;
 
@@ -291,7 +293,7 @@ void uio_parse_args(unsigned int argc, const char *argv[])
     
     while(1)
     {
-        c = getopt_long(argc, (char * const*)argv, "p:a:s:c", long_options, &option_index);
+        c = getopt_long(argc, (char * const*)argv, "p:a:s:dc", long_options, &option_index);
       
         if (c == -1)
         {
@@ -603,9 +605,12 @@ int uio_fpga_platform_default_printf(FPGA_MSG_PRINTF_TYPE type, const char * for
             break;
         case FPGA_MSG_PRINTF_DEBUG:
 #ifdef INTEL_FPGA_MSG_PRINTF_ENABLE_DEBUG
-            fputs( "DEBUG: ", stdout );
-            ret = vprintf( format, args );
-            fputs( "\n", stdout );
+            if (g_uio_show_dbg_msg)
+            {
+                fputs("DEBUG: ", stdout);
+                ret = vprintf(format, args);
+                fputs("\n", stdout);
+            }
 #endif            
             break;
         default:
