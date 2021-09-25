@@ -19,3 +19,8 @@ Available Options:
 
 2. -DTEST=yes/no.
     This is to generate test cases under test directory.
+    Gtest's include and libray path are needed to generate protoDriver test, path can be specified by 
+    during cmake configuration like shown below.
+    If gtest include path = /rocketboard/googletest/build-arm/install/include
+    If gtest lib path     = /rocketboard/googletest/build-arm/install/lib
+    cmake . -Bbuild -DTEST=yes -DCMAKE_CXX_FLAGS="$(CMAKE_CXX_FLAGS) -Wall -I /rocketboard/googletest/build-arm/install/include -L /rocketboard/googletest/build-arm/install/lib"
