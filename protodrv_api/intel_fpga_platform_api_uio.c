@@ -155,6 +155,7 @@ void *uio_interrupt_thread()
 bool fpga_platform_init(unsigned int argc, const char *argv[])
 {
     bool        is_args_valid;
+    bool        ret = false;
 
     uio_parse_args(argc, argv);
     is_args_valid = uio_validate_args();
@@ -178,6 +179,7 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
         if(uio_create_unit_test_sw_model() == false)
             goto err_scan;
 #endif
+        ret = true;
     }
 
     if(s_uio_single_component_mode)
@@ -191,7 +193,7 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
         pthread_create(&s_intThread_id, NULL, uio_interrupt_thread, NULL);
     }
 
-    return true;
+    return ret;
 
 err_scan:
     munmap(s_uio_mmap_ptr,s_uio_addr_span);
@@ -200,7 +202,7 @@ err_map:
     close(s_uio_drv_handle);
 
 err_open:
-    return false;
+    return ret;
 }
 
 
