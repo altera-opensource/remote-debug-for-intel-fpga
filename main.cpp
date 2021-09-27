@@ -53,7 +53,6 @@ static void show_help(const char *program)
         " --start-address=<address>, -s <address>   JTAG-Over-Protocol interface starting address within this UIO driver (default: 0)\n"
         " --h2t-t2h-mem-size=<size>, -m <size>      JTAG-Over-Protocol H2T/T2H Memory Size in bytes (default: 4096)\n"
         " --port=<port>, -p <port>                  listening port (default: 0)\n"
-        " --ip=<ip address>, -i <ip address>        IP address to bind (default: 0.0.0.0)\n"
         " --version, -v                             print version and exit\n"
         " --help, -h                                print the usage description\n"
         "\n"
