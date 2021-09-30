@@ -579,6 +579,10 @@ RETURN_CODE process_mgmt_data(CLIENT_CONN *client_conn, SERVER_CONN *server_conn
         // Polls to see if there is room for the packet
         uint64_t mgmt_buff = ((server_conn->hw_callbacks.get_mgmt_buffer != NULL) && (server_conn->loopback_mode == 0)) ? server_conn->hw_callbacks.get_mgmt_buffer(bytes_to_transfer) : server_conn->buff->mgmt_rx_buff;
 
+/*TODO: clean up pointer vs int type mismatch*/
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+
         // Recv MGMT payload
         if (mgmt_buff != 0) {
             server_conn->pkt_stats.mgmt_cnt++;
@@ -587,25 +591,26 @@ RETURN_CODE process_mgmt_data(CLIENT_CONN *client_conn, SERVER_CONN *server_conn
             if (server_conn->buff->use_wrapping_data_buffers && ((first_len = buff_len_to_wrap_boundary(server_conn->buff->mgmt_rx_buff, server_conn->buff->mgmt_rx_buff_sz, mgmt_buff, header->DATA_LEN_BYTES)) != 0)) {
                 // Wrap, 2 recv necessary
                 size_t second_len = header->DATA_LEN_BYTES - first_len;
-                has_error = socket_recv_accumulate(client_conn->mgmt_fd, mgmt_buff, first_len, 0, &bytes_recvd);
+                has_error = socket_recv_accumulate(client_conn->mgmt_fd, /*TODO: clean up pointer vs int type mismatch*/ (char *)mgmt_buff, first_len, 0, &bytes_recvd);
                 if (has_error == OK) {
-                    has_error = socket_recv_accumulate(client_conn->mgmt_fd, server_conn->buff->mgmt_rx_buff, second_len, 0, &bytes_recvd);
+                    has_error = socket_recv_accumulate(client_conn->mgmt_fd, /*TODO: clean up pointer vs int type mismatch*/ (char *)server_conn->buff->mgmt_rx_buff, second_len, 0, &bytes_recvd);
                 }
             } else {
                 // No wrap
-                has_error = socket_recv_accumulate(client_conn->mgmt_fd, mgmt_buff, bytes_to_transfer, 0, &bytes_recvd);
+                has_error = socket_recv_accumulate(client_conn->mgmt_fd, /*TODO: clean up pointer vs int type mismatch*/ (char *)mgmt_buff, bytes_to_transfer, 0, &bytes_recvd);
             }
 
             // Push to driver or loopback
             if (has_error == OK) {
                 if (server_conn->loopback_mode == 0) {
                     // Normal operation, push the transaction to HW
-                    has_error = (server_conn->hw_callbacks.mgmt_data_received != NULL) ? server_conn->hw_callbacks.mgmt_data_received(header, (unsigned char *)mgmt_buff) : OK;
+                    has_error = (server_conn->hw_callbacks.mgmt_data_received != NULL) ? server_conn->hw_callbacks.mgmt_data_received(header, /*TODO: clean up pointer vs int type mismatch*/ (uint32_t)mgmt_buff) : OK;
                 } else {
                     // Send the header
                     if ((has_error = socket_send_all(client_conn->mgmt_rsp_fd, server_conn->buff->mgmt_header_buff, SIZEOF_PACKET_GUARDBAND + SIZEOF_MGMT_PACKET_HEADER, 0, &bytes_recvd)) == OK) {
                         // Send the payload
-                        if ((has_error = socket_send_all(client_conn->mgmt_rsp_fd, mgmt_buff, bytes_to_transfer, 0, &bytes_recvd)) != OK) {
+                        if ((has_error = socket_send_all(client_conn->mgmt_rsp_fd, /*TODO: clean up pointer vs int type mismatch*/ (char *)mgmt_buff, bytes_to_transfer, 0, &bytes_recvd)) != OK)
+                        {
                             print_last_socket_error_b("Failed to send loopback MGMT RSP data", bytes_recvd);
                         }
                     } else {
@@ -620,6 +625,7 @@ RETURN_CODE process_mgmt_data(CLIENT_CONN *client_conn, SERVER_CONN *server_conn
             server_conn->mgmt_waiting = 1;
         }
     }
+#pragma GCC diagnostic pop
 
     return has_error;
 }
@@ -666,6 +672,10 @@ RETURN_CODE process_mgmt_rsp_data(CLIENT_CONN *client_conn, SERVER_CONN *server_
     ssize_t bytes_sent;
     RETURN_CODE has_error = OK;
 
+/*TODO: clean up pointer vs int type mismatch*/
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+
     MGMT_PACKET_HEADER *header = (MGMT_PACKET_HEADER *)(server_conn->buff->mgmt_rsp_header_buff + SIZEOF_PACKET_GUARDBAND);
     uint32_t mgmt_rsp_buff;
     if ((has_error = (server_conn->hw_callbacks.acquire_mgmt_rsp_data(header, &mgmt_rsp_buff) == 0) ? OK : FAILURE) == OK) {
@@ -679,12 +689,13 @@ RETURN_CODE process_mgmt_rsp_data(CLIENT_CONN *client_conn, SERVER_CONN *server_
             if (server_conn->buff->use_wrapping_data_buffers && ((first_len = buff_len_to_wrap_boundary(server_conn->buff->mgmt_rsp_tx_buff, server_conn->buff->mgmt_rsp_tx_buff_sz, mgmt_rsp_buff, header->DATA_LEN_BYTES)) != 0)) {
                 // Wrap, 2 sends necessary
                 size_t second_len = header->DATA_LEN_BYTES - first_len;
-                if ((has_error = socket_send_all(client_conn->mgmt_rsp_fd, (const char *)mgmt_rsp_buff, first_len, 0, &bytes_sent)) == OK) {
-                    has_error = socket_send_all(client_conn->mgmt_rsp_fd, (const char *)server_conn->buff->mgmt_rsp_tx_buff, second_len, 0, &bytes_sent);
+                if ((has_error = socket_send_all(client_conn->mgmt_rsp_fd, /*TODO: clean up pointer vs int type mismatch*/ (const char *)mgmt_rsp_buff, first_len, 0, &bytes_sent)) == OK)
+                {
+                    has_error = socket_send_all(client_conn->mgmt_rsp_fd, /*TODO: clean up pointer vs int type mismatch*/ (const char *)server_conn->buff->mgmt_rsp_tx_buff, second_len, 0, &bytes_sent);
                 }
             } else {
                 // No wrap
-                has_error = socket_send_all(client_conn->mgmt_rsp_fd, (const char *)mgmt_rsp_buff, curr_payload_bytes, 0, &bytes_sent);
+                has_error = socket_send_all(client_conn->mgmt_rsp_fd, /*TODO: clean up pointer vs int type mismatch*/ (const char *)mgmt_rsp_buff, curr_payload_bytes, 0, &bytes_sent);
             }
             if (has_error == OK) {
                 if (server_conn->hw_callbacks.mgmt_rsp_data_complete != NULL) {
@@ -696,6 +707,8 @@ RETURN_CODE process_mgmt_rsp_data(CLIENT_CONN *client_conn, SERVER_CONN *server_
             print_last_socket_error_b("An error occurred sending MGMT RSP data", bytes_sent);
         }
     }
+    
+#pragma GCC diagnostic pop
 
     return has_error;
 }
