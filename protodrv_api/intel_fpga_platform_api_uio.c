@@ -128,7 +128,7 @@ void *uio_interrupt_thread()
 
                 if(ret > 0){
                     if(g_uio_fpga_interface_info_vec[0].isr_callback != NULL){
-                        (*g_uio_fpga_interface_info_vec[0].isr_callback)();
+                        g_uio_fpga_interface_info_vec[0].isr_callback(g_uio_fpga_interface_info_vec[0].isr_context);
                     } else {
                         fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread ISR is NULL ptr" );
 			break;

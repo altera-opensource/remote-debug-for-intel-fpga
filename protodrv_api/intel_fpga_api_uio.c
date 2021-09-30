@@ -140,11 +140,12 @@ int fpga_register_isr(FPGA_INTERRUPT_HANDLE handle, FPGA_ISR isr, void *isr_cont
     int ret = -1;
     if (handle < g_uio_fpga_interface_info_vec_size )
     {
-	ret = 0;
+        ret = 0;
         if(g_uio_fpga_interface_info_vec[handle].isr_callback != NULL)
             ret = 1;
 
-         g_uio_fpga_interface_info_vec[handle].isr_callback = isr;
+        g_uio_fpga_interface_info_vec[handle].isr_callback = isr;
+        g_uio_fpga_interface_info_vec[handle].isr_context = isr_context;
     }
 
     return ret;
