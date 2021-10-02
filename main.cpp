@@ -45,7 +45,7 @@ static void show_help(const char *program)
 {
     printf(
         "Usage:\n"
-        " %s [--uio-driver-path=<path>] [--start-address] [--h2t-t2h-mem-size] [--port=<port>] [--ip=<ip address>]\n"
+        " %s [--uio-driver-path=<path>] [--start-address=<address>] [--h2t-t2h-mem-size=<size>] [--port=<port>] [--ip=<ip address>]\n"
         " %s --version\n"
         " %s --help\n\n"
         "Optional arguments:\n"
@@ -57,7 +57,7 @@ static void show_help(const char *program)
         " --help, -h                                print the usage description\n"
         "\n"
         "Note:\n"
-        " In the device tree, the address span of the whole JTAP over protocol should be binded into the specified UIO driver.\n"
+        " In the device tree, the address span of the whole JTAP over protocol interface should be bound into the specified UIO driver.\n"
         " Typically, the base address starts at 0x0.\n\n",
         program, program, program);
 }
@@ -103,7 +103,9 @@ int main( int argc, char** argv )
     EtherlinkCommandLine etherlink_cmdline = {4096, 0, {0,}};
     int rc = parse_cmd_args(&etherlink_cmdline, argc, argv);
     if ( rc ) {
-        printf("ERROR: Error scanning command line; exiting\n");
+        if ( rc != -2 ){
+            printf("ERROR: Error scanning command line; exiting\n\n");
+        }
         show_help(argv[0]);
         goto out_exit;
     }
@@ -115,7 +117,8 @@ int main( int argc, char** argv )
 
     if(fpga_platform_init(argc, (const char **)argv) == false)
     {
-        printf("ERROR: Platform failed to initilize; exiting\n");
+        printf("ERROR: Platform failed to initilize; exiting\n\n");
+        show_help(argv[0]);
         rc = -1;
         goto out_exit;
     }
@@ -184,13 +187,15 @@ int parse_cmd_args(EtherlinkCommandLine *etherlink_cmdline, int argc, char *argv
                 
             case 'h':
                 // Command line help
-                show_help(argv[0]);
                 return -2;
                 break;
 
             case 'm':
                 // H2T/T2H Mem Size
                 etherlink_cmdline->h2t_t2h_mem_size = parse_integer_arg("h2t-t2h-mem-size");
+                if (etherlink_cmdline->h2t_t2h_mem_size == 0){
+                    return -3;
+                }
                 break;
 
             case 'p':
@@ -254,7 +259,7 @@ long parse_integer_arg(const char *name)
             if (errno == ERANGE)
             {
                 ret = 0;
-                printf("%s value is too big. %s is provided; maximum accepted is %ld", name, optarg, LONG_MAX);
+                printf("ERROR: %s value is too big. %s is provided; maximum accepted is %ld\n", name, optarg, LONG_MAX);
             }
         }
         else
@@ -264,7 +269,7 @@ long parse_integer_arg(const char *name)
             if (errno == ERANGE)
             {
                 ret = 0;
-                printf("%s value is too big. %s is provided; maximum accepted is %ld", name, optarg, LONG_MAX);
+                printf("ERROR: %s value is too big. %s is provided; maximum accepted is %ld\n", name, optarg, LONG_MAX);
             }
             else
             {
@@ -272,7 +277,7 @@ long parse_integer_arg(const char *name)
                 span_c = ret;
                 if (span != span_c)
                 {
-                    printf("%s value is too big. %s is provided; maximum accepted is %ld", name, optarg, (size_t)-1);
+                    printf("ERROR: %s value is too big. %s is provided; maximum accepted is %ld\n", name, optarg, (size_t)-1);
                     ret = 0;
                 }
             }
@@ -280,7 +285,7 @@ long parse_integer_arg(const char *name)
     }
     else
     {
-        printf("Invalid argument value type is provided. A integer value is expected. %s is provided.", optarg);
+        printf("ERROR: Invalid argument value type is provided. A integer value is expected. %s is provided.\n", optarg);
     }
 
     return ret;
