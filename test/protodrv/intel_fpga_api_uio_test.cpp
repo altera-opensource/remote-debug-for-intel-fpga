@@ -89,7 +89,7 @@ public:
         optind = 0;     // Reset getopt_long position.
         s_uio_msg_oss = &m_uio_msg_oss;
         fpga_platform_register_printf(s_uio_utst_printf);
-        
+        fpga_platform_register_runtime_exception_handler(s_uio_utst_exception_handler); 
         const char *argv_valid[] =
         {
             "program",
@@ -105,12 +105,11 @@ public:
             "INFO: UIO Platform Configuration:"
             "INFO:    Driver Path: /dev/uio0"
             "INFO:    Address Span: 4096"
-            "INFO:    Start Address: 0x0"
-            "INFO:    Single Component Operation Model: Yes",
+            "INFO:    Start Address: 0x0",
             m_uio_msg_oss.str().c_str() );
         
         unsigned int num_inf = fpga_get_num_of_interfaces();
-        EXPECT_EQ(1, num_inf);
+        EXPECT_EQ(1, (int)num_inf);
         
         m_handle = fpga_open(0);
         EXPECT_TRUE(m_handle != FPGA_MMIO_INTERFACE_INVALID_HANDLE);
@@ -269,7 +268,7 @@ TEST_F(MMIO, should_deal_with_mmio_32)
         SCOPED_TRACE(s_msg_buffer);
         if (((addr % BYTES_PER_64_BIT) / BYTES_PER_UNIT) == ((unsigned int)i / NUM_UNIT_PER_64_BIT))
         {
-            EXPECT_EQ((i/NUM_UNIT_PER_64_BIT), rdata);
+            EXPECT_EQ((i/NUM_UNIT_PER_64_BIT), (int)rdata);
         }
         else
         {
@@ -315,7 +314,7 @@ TEST_F(MMIO, should_deal_with_mmio_64)
         SCOPED_TRACE(s_msg_buffer);
         if (((addr % BYTES_PER_64_BIT) / BYTES_PER_UNIT) == ((unsigned int)i / NUM_UNIT_PER_64_BIT))
         {
-            EXPECT_EQ((i/NUM_UNIT_PER_64_BIT), rdata);
+            EXPECT_EQ((i/NUM_UNIT_PER_64_BIT), (int)rdata);
         }
         else
         {

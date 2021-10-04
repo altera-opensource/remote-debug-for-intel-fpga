@@ -183,7 +183,7 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
             goto err_scan;
 #else
         if(uio_create_unit_test_sw_model() == false)
-            goto err_scan;
+            goto err_open;
 #endif
         ret = true;
     }
@@ -205,16 +205,17 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
 
     return ret;
 
+#ifndef UIO_UNIT_TEST_SW_MODEL_MODE
 err_scan:
     munmap(s_uio_mmap_ptr,s_uio_addr_span);
 
 err_map:
     close(s_uio_drv_handle);
+#endif
 
 err_open:
     return ret;
 }
-
 
 void fpga_platform_cleanup()
 {

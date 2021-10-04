@@ -88,6 +88,7 @@ public:
     {
         s_uio_msg_oss = &m_uio_msg_oss;
         fpga_platform_register_printf(s_uio_utst_printf);
+	fpga_platform_register_runtime_exception_handler(s_uio_utst_exception_handler);
     }
 
     void TearDown()
@@ -286,8 +287,7 @@ TEST_F(Argument, should_deal_with_valid_argument_dec_span)
         "INFO: UIO Platform Configuration:"
         "INFO:    Driver Path: /dev/uio0"
         "INFO:    Address Span: 12345678"
-        "INFO:    Start Address: 0x0"
-        "INFO:    Single Component Operation Model: No",
+        "INFO:    Start Address: 0x0",
         m_uio_msg_oss.str().c_str() );
 
     fpga_platform_cleanup();
@@ -309,8 +309,7 @@ TEST_F(Argument, should_deal_with_valid_argument_hex_span)
         "INFO: UIO Platform Configuration:"
         "INFO:    Driver Path: /dev/uio0"
         "INFO:    Address Span: 305419896"
-        "INFO:    Start Address: 0x0"
-        "INFO:    Single Component Operation Model: No",
+        "INFO:    Start Address: 0x0",
         m_uio_msg_oss.str().c_str() );
 
     fpga_platform_cleanup();
@@ -334,8 +333,7 @@ TEST_F(Argument, should_deal_with_valid_argument_with_optional_single_mode)
         "INFO: UIO Platform Configuration:"
         "INFO:    Driver Path: /dev/uio0"
         "INFO:    Address Span: 305419896"
-        "INFO:    Start Address: 0x0"
-        "INFO:    Single Component Operation Model: Yes",
+        "INFO:    Start Address: 0x0",
         m_uio_msg_oss.str().c_str() );
 
     fpga_platform_cleanup();
@@ -359,8 +357,7 @@ TEST_F(Argument, should_deal_with_valid_argument_with_optional_start_addr)
         "INFO: UIO Platform Configuration:"
         "INFO:    Driver Path: /dev/uio0"
         "INFO:    Address Span: 305419896"
-        "INFO:    Start Address: 0x1234"
-        "INFO:    Single Component Operation Model: Yes",
+        "INFO:    Start Address: 0x1234",
         m_uio_msg_oss.str().c_str() );
 
     fpga_platform_cleanup();
