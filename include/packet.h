@@ -24,8 +24,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,  EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef STI_NOSYS_PROT_PACKET_H_INCLUDED
-#define STI_NOSYS_PROT_PACKET_H_INCLUDED
+#pragma once
+
 
 #include "common.h"
 
@@ -136,4 +136,3 @@ void dump_bytes(char *bytes, size_t len);
 }
 #endif
 
-#endif //STI_NOSYS_PROT_PACKET_H_INCLUDED

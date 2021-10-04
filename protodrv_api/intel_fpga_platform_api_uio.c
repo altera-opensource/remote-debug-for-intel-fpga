@@ -58,9 +58,11 @@ static void uio_fpga_platform_default_runtime_exception_handler(const char *func
 FPGA_MSG_PRINTF                 g_uio_fpga_platform_printf = uio_fpga_platform_default_printf;
 FPGA_RUNTIME_EXCEPTION_HANDLER  g_uio_fpga_platform_runtime_exception_handler = uio_fpga_platform_default_runtime_exception_handler;
 
-static char *s_uio_drv_path = NULL;
+int g_uio_show_dbg_msg = 0;
+
+static char *s_uio_drv_path = "/dev/uio0";
 static size_t s_uio_addr_span = 0;
-static int s_uio_single_component_mode = 0;
+static int s_uio_single_component_mode = 1;
 static size_t s_uio_start_addr = 0;
 static size_t s_uio_inThread_timeout = 0;
 
@@ -72,6 +74,9 @@ static int s_intFlags = 0;
 
 static void uio_parse_args(unsigned int argc, const char *argv[]);
 static long uio_parse_integer_arg(const char *name);
+static void uio_update_based_on_sysfs();
+static void uio_get_sysfs_map_path(char *path, int path_buf_size);
+static uint64_t uio_get_sysfs_map_file_to_uint64(const char *path);
 static bool uio_validate_args();
 static void uio_print_configuration();
 static bool uio_open_driver();
@@ -123,7 +128,7 @@ void *uio_interrupt_thread()
 
                 if(ret > 0){
                     if(g_uio_fpga_interface_info_vec[0].isr_callback != NULL){
-                        (*g_uio_fpga_interface_info_vec[0].isr_callback)();
+                        g_uio_fpga_interface_info_vec[0].isr_callback(g_uio_fpga_interface_info_vec[0].isr_context);
                     } else {
                         fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread ISR is NULL ptr" );
 			break;
@@ -158,6 +163,7 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
     bool        ret = false;
 
     uio_parse_args(argc, argv);
+    uio_update_based_on_sysfs();
     is_args_valid = uio_validate_args();
 
     // Interrupt Timeout is configured to 100ms
@@ -180,6 +186,10 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
             goto err_scan;
 #endif
         ret = true;
+    }
+    else
+    {
+        goto err_open;
     }
 
     if(s_uio_single_component_mode)
@@ -267,14 +277,14 @@ void fpga_platform_cleanup()
 void uio_parse_args(unsigned int argc, const char *argv[])
 {
     static struct option long_options[] =
-    {
-        {"uio-driver-path",  required_argument, 0, 'p'},
-        {"start-address",  required_argument, 0, 'a'},
-        {"address-span",  required_argument, 0, 's'},
-        {"single-component-mode", no_argument,  &s_uio_single_component_mode, 'c'},
-        {0, 0, 0, 0}
-    };
-    
+        {
+            {"uio-driver-path", required_argument, 0, 'p'},
+            {"start-address", required_argument, 0, 'a'},
+            {"address-span", required_argument, 0, 's'},
+            {"show-dbg-msg", no_argument, &g_uio_show_dbg_msg, 'd'},
+            {"single-component-mode", no_argument, &s_uio_single_component_mode, 'c'},
+            {0, 0, 0, 0}};
+
     int option_index = 0;
     int c;
 
@@ -283,7 +293,7 @@ void uio_parse_args(unsigned int argc, const char *argv[])
     
     while(1)
     {
-        c = getopt_long(argc, (char * const*)argv, "p:a:s:c", long_options, &option_index);
+        c = getopt_long(argc, (char * const*)argv, "p:a:s:dc", long_options, &option_index);
       
         if (c == -1)
         {
@@ -379,6 +389,78 @@ long uio_parse_integer_arg( const char *name )
     return ret;
 }
 
+void uio_update_based_on_sysfs()
+{
+#ifndef UIO_UNIT_TEST_SW_MODEL_MODE
+    if (s_uio_addr_span == 0)
+    {
+        enum
+        {
+            UIO_MAP_PATH_SIZE = 1024
+        };
+
+        char map_path[UIO_MAP_PATH_SIZE + 1];
+
+        uio_get_sysfs_map_path(map_path, UIO_MAP_PATH_SIZE);
+
+        strncat(map_path, "size", UIO_MAP_PATH_SIZE);
+        s_uio_addr_span = uio_get_sysfs_map_file_to_uint64(map_path);
+    }
+#endif
+}
+
+uint64_t uio_get_sysfs_map_file_to_uint64(const char *path)
+{
+    uint64_t ret = 0;
+    
+    FILE *fp;
+
+    fp = fopen(path, "r");
+    if (fp)
+    {
+        if (fscanf(fp, "%lx", &ret) != 1)
+        {
+            ret = 0;
+        }
+        fclose(fp);
+    }
+
+    return ret;
+}
+void uio_get_sysfs_map_path(char *path, int path_buf_size)
+{
+    uint32_t index = 0;
+    char *p;
+    char *endptr;
+
+    path[0] = '\0';
+    // The region index is encoded in the file name component.
+    p = strrchr(s_uio_drv_path, '/');
+    if (!p)
+    {
+        return;
+    }
+
+    // p + 4 because the string will look like:
+    // 01234
+    // /dev/uio3
+    endptr = NULL;
+    p += 4;
+    index = strtoul(p, &endptr, 10);
+    if (*endptr)
+    {
+        return;
+    }
+
+    // Example map path: /sys/class/uio/uio0/maps/map0
+    // Only use map0!
+    if (snprintf(path, path_buf_size, "/sys/class/uio/uio%d/maps/map0/", index) < 0)
+    {
+        path[0] = '\0';
+        return;
+    }
+}
+
 bool uio_validate_args()
 {
     bool ret = s_uio_addr_span > 0 &&
@@ -404,8 +486,8 @@ void uio_print_configuration()
     fpga_msg_printf( FPGA_MSG_PRINTF_INFO, "   Driver Path: %s", s_uio_drv_path );
     fpga_msg_printf( FPGA_MSG_PRINTF_INFO, "   Address Span: %ld", s_uio_addr_span );
     fpga_msg_printf( FPGA_MSG_PRINTF_INFO, "   Start Address: 0x%lX", s_uio_start_addr );
-    fpga_msg_printf( FPGA_MSG_PRINTF_INFO, "   Single Component Operation Model: %s", s_uio_single_component_mode ? "Yes" : "No" );
-    
+    // TODO: no way to disable "Single Component Operation Model" for now.  Don't print this info.
+    // fpga_msg_printf( FPGA_MSG_PRINTF_INFO, "   Single Component Operation Model: %s", s_uio_single_component_mode ? "Yes" : "No" );
 }
 
 bool uio_open_driver()
@@ -523,9 +605,12 @@ int uio_fpga_platform_default_printf(FPGA_MSG_PRINTF_TYPE type, const char * for
             break;
         case FPGA_MSG_PRINTF_DEBUG:
 #ifdef INTEL_FPGA_MSG_PRINTF_ENABLE_DEBUG
-            fputs( "DEBUG: ", stdout );
-            ret = vprintf( format, args );
-            fputs( "\n", stdout );
+            if (g_uio_show_dbg_msg)
+            {
+                fputs("DEBUG: ", stdout);
+                ret = vprintf(format, args);
+                fputs("\n", stdout);
+            }
 #endif            
             break;
         default:

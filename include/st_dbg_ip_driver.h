@@ -44,14 +44,7 @@ extern "C" {
 
 // Customize here from FPGA design
 #define ST_DBG_IF_BASE 0x0000
-#define H2T_MEM_BASE 0x1000
-#define H2T_MEM_SPAN 0x1000
-#define T2H_MEM_BASE 0x2000
-#define T2H_MEM_SPAN 0x1000
-#define MGMT_MEM_BASE 0x0
-#define MGMT_MEM_SPAN 0x0
-#define MGMT_RSP_MEM_BASE 0x0
-#define MGMT_RSP_MEM_SPAN 0x0
+#define JOP_MEM_BASE 0x1000
 
 typedef struct {
     uint32_t ST_DBG_IP_CSR_BASE_ADDR;

@@ -70,14 +70,16 @@ typedef struct
     bool                         is_mmio_opened; 
     bool                         is_interrupt_opened;
     bool                         interrupt_enable;
-    FPGA_ISR                     (*isr_callback)();
+    FPGA_ISR                     isr_callback;
+    void                         *isr_context;
 } FPGA_INTERFACE_INFO;
 typedef void * FPGA_PLATFORM_PHYSICAL_MEM_ADDR_TYPE;
 
 // Platform specific internal API
 extern FPGA_INTERFACE_INFO     *g_uio_fpga_interface_info_vec;
 extern size_t                  g_uio_fpga_interface_info_vec_size;
-extern FPGA_MSG_PRINTF                 g_uio_fpga_platform_printf;
+extern FPGA_MSG_PRINTF         g_uio_fpga_platform_printf;
+extern int                     g_uio_show_dbg_msg;
 extern FPGA_RUNTIME_EXCEPTION_HANDLER  g_uio_fpga_platform_runtime_exception_handler;
 extern sem_t g_intSem;
 

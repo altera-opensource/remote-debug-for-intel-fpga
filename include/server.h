@@ -24,8 +24,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,  EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef STI_NOSYS_PROT_SERVER_H_INCLUDED
-#define STI_NOSYS_PROT_SERVER_H_INCLUDED
+#pragma once
+
 
 #include "sockets.h"
 #include "packet.h"
@@ -121,8 +121,6 @@ typedef struct {
     // Optional callback to get a driver parameter.  Returns NULL if param is undefined.
     char *(*get_param)(const char *param);
 
-    // Print a message using printf style formatting + varargs
-    int(*server_printf)(printf_format_arg, ...);
 } SERVER_HW_CALLBACKS;
 
 typedef struct {
@@ -168,7 +166,7 @@ extern const CLIENT_CONN CLIENT_CONN_default;
 
 // Server code
 RETURN_CODE initialize_server(unsigned short port, SERVER_CONN *server_conn, const char *port_filename);
-void server_main(SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn);
+int server_main(SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn);
 void server_terminate();
 void reject_client(SERVER_CONN *server_conn);
 void handle_client(SERVER_CONN *server_conn, CLIENT_CONN *client_conn);
@@ -193,11 +191,12 @@ RETURN_CODE process_mgmt_rsp_data(CLIENT_CONN *client_conn, SERVER_CONN *server_
 // Misc helper
 void reset_buffers(SERVER_CONN *server_conn);
 void generate_server_welcome_message(char *buff, size_t buff_size, int mgmt_support, SERVER_BUFFERS *serv_buff, int handle);
-void print_last_socket_error(const char *context_msg, int(*printf_fp)(printf_format_arg, ...));
-void print_last_socket_error_b(const char *context_msg, ssize_t bytes_transferred, int(*printf_fp)(printf_format_arg, ...));
+void print_last_socket_error(const char *context_msg);
+void print_last_socket_error_b(const char *context_msg, ssize_t bytes_transferred);
 
 #ifdef __cplusplus    
 }
 #endif
 
-#endif //STI_NOSYS_PROT_SERVER_H_INCLUDED
+#pragma once
+

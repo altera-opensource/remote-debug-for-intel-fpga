@@ -31,9 +31,6 @@
 #include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/mman.h>
-#include <new>
-#include <arpa/inet.h>
 #include <errno.h>
 #include <limits.h>
 #include <ctype.h>
@@ -43,152 +40,135 @@
 #include "remote_dbg.h"
 #include "stream_dbg.h"
 
-// mmlink Command line struct
-struct  MMLinkCommandLine
+// etherlink Command line input help
+static void show_help(const char *program)
 {
-	int      port;
-	char     ip[16];
+    printf(
+        "Usage:\n"
+        " %s [--uio-driver-path=<path>] [--start-address=<address>] [--h2t-t2h-mem-size=<size>] [--port=<port>] [--ip=<ip address>]\n"
+        " %s --version\n"
+        " %s --help\n\n"
+        "Optional arguments:\n"
+        " --uio-driver-path=<path>, -u <path>       UIO driver path (default: /dev/uio0)\n"
+        " --start-address=<address>, -s <address>   JTAG-Over-Protocol interface starting address within this UIO driver (default: 0)\n"
+        " --h2t-t2h-mem-size=<size>, -m <size>      JTAG-Over-Protocol H2T/T2H Memory Size in bytes (default: 4096)\n"
+        " --port=<port>, -p <port>                  listening port (default: 0)\n"
+        " --version, -v                             print version and exit\n"
+        " --help, -h                                print the usage description\n"
+        "\n"
+        "Note:\n"
+        " In the device tree, the address span of the whole JTAP over protocol interface should be bound into the specified UIO driver.\n"
+        " Typically, the base address starts at 0x0.\n\n",
+        program, program, program);
+}
+
+static IRemoteDebug *s_etherlink_server = nullptr;
+
+// Streaming debug command line struct
+enum
+{
+    IP_MAX_STR_LEN = 15
 };
 
-struct MMLinkCommandLine mmlinkCmdLine = { 0, { 0, } };
-
-// mmlink Command line input help
-void MMLinkAppShowHelp()
+struct  EtherlinkCommandLine
 {
-	printf("Usage:\n");
-	printf("etherlink\n");
-	printf("<UIO Driver Path>     --uio-path=<PATH>                "
-		"OR  -U <PATH>\n");
-	printf("<TCP PORT>            --port=<PORT>                "
-		"OR  -P <PORT>\n");
-	printf("<IP ADDRESS>          --ip=<IP ADDRESS>            "
-		"OR  -I <IP ADDRESS>\n");
-	printf("<Version>             -v,--version Print version and exit\n");
-	printf("\n");
+    size_t  h2t_t2h_mem_size;
+    int     port;
+    char    ip[IP_MAX_STR_LEN+1];
+};
 
-}
-
-/*
- * macro to check return codes, print error message, and goto cleanup label
- * NOTE: this changes the program flow (uses goto)!
- */
-#define ON_ERR_GOTO(res, label, desc)                    \
-		do {                                       \
-			if ((res) != FPGA_OK) {            \
-				print_err((desc), (res));  \
-				goto label;                \
-			}                                  \
-		} while (0)
-
-void print_err(const char *s)
-{
-	fprintf(stderr, "Error: %s\n", s);
-}
-
-void mmlink_sig_handler(int signo)
-{
-    if (signo == SIGINT)
-    {
-        printf("\nSIGINT triggered\n");
-        fpga_platform_cleanup();
-    }
-    exit(0);
-}
-
-remote_dbg *srv = nullptr;
-
-static int parse_cmd_args(struct MMLinkCommandLine *mmlinkCmdLine,
-		int argc,
-		char *argv[]);
+static int parse_cmd_args(EtherlinkCommandLine *etherlink_cmdline, int argc, char *argv[]);
 static long parse_integer_arg(const char *name);
-static int run_mmlink(const struct MMLinkCommandLine *mmlinkCmdLine);
+static int run_etherlink(const struct EtherlinkCommandLine *etherlink_cmdline);
+static void install_sigint_handler();
+
+class StreamingDebug : public IRemoteDebug
+{
+public:
+    StreamingDebug(){}
+    virtual ~StreamingDebug(){}
+    int run(size_t h2t_t2h_mem_size, const char * /*unused*/, int port) override
+    {
+        return start_st_dbg_transport_server_over_tcpip(h2t_t2h_mem_size, port);
+    }
+    void terminate() override
+    {
+        terminate_st_dbg_transport_server_over_tcpip();
+    }
+
+};
 
 int main( int argc, char** argv )
 {
-	int res;
+    EtherlinkCommandLine etherlink_cmdline = {4096, 0, {0,}};
+    int rc = parse_cmd_args(&etherlink_cmdline, argc, argv);
+    if ( rc ) {
+        if ( rc != -2 ){
+            printf("ERROR: Error scanning command line; exiting\n\n");
+        }
+        show_help(argv[0]);
+        goto out_exit;
+    }
 
-	// Parse command line
-	if ( argc < 2 ) {
-		MMLinkAppShowHelp();
-		return 1;
-	}
+    printf("INFO: Etherlink Server Configuration:\n");
+    printf("INFO:    H2T/T2H Memory Size  : %ld\n", etherlink_cmdline.h2t_t2h_mem_size);
+    printf("INFO:    Listening Port       : %d\n", etherlink_cmdline.port);
+    printf("INFO:    IP Address           : %s\n", etherlink_cmdline.ip);
 
+    if(fpga_platform_init(argc, (const char **)argv) == false)
+    {
+        printf("ERROR: Platform failed to initilize; exiting\n\n");
+        show_help(argv[0]);
+        rc = -1;
+        goto out_exit;
+    }
 
-    int rc = parse_cmd_args(&mmlinkCmdLine, argc, argv);
-	if ( rc ) {
-		printf("Error scanning command line.\n");
-		goto out_exit;
-	}
+    // Install SIGINT handler
+    install_sigint_handler();
 
-	if ('\0' == mmlinkCmdLine.ip[0]) {
-		strncpy(mmlinkCmdLine.ip, "0.0.0.0", 8);
-		mmlinkCmdLine.ip[7] = '\0';
-	}
- 
- 	printf(" Port             : %d\n", mmlinkCmdLine.port);
-	printf(" IP address       : %s\n", mmlinkCmdLine.ip);
-
-	if(fpga_platform_init(argc, (const char **)argv) == false){
-            printf("fpga_platform_init failed\n");
-            rc = -1;
-            goto out_exit;
-	}
-
-	fflush(stdout);
-
-        // Install SIGINT handler
-        struct sigaction sig_action;
-        memset(&sig_action, 0, sizeof(sig_action));
-        sig_action.sa_handler = &mmlink_sig_handler;
-        sig_action.sa_flags = 0;
-
-        if(sigaction(SIGINT, &sig_action, NULL) != 0)
-            printf("SIGINT handler installment failed\n");
-
-	if( run_mmlink(&mmlinkCmdLine) != 0) {
-            printf("Failed to connect MMLINK  \n.");
-            rc = 3;
-	}
+    if( run_etherlink(&etherlink_cmdline) != 0) {
+        printf("ERROR: Etherlink server failed to start successfully; exiting.\n");
+        rc = 3;
+    }
 
 out_exit:
-	fpga_platform_cleanup();
+    fpga_platform_cleanup();
 
-	return rc;
+    return rc;
 }
 
-int run_mmlink(const struct MMLinkCommandLine *mmlinkCmdLine )
+int run_etherlink(const struct EtherlinkCommandLine *etherlink_cmdline )
 {
-	int res                        = 0;
+    int res = 0;
 
-    auto  srv = new stream_dbg();
-	if (srv) {
-		res = srv->run(mmlinkCmdLine->ip, mmlinkCmdLine->port);
-		delete srv;
-		srv = 0;
-	}
+    s_etherlink_server = new StreamingDebug();
+    if (s_etherlink_server) {
+        res = s_etherlink_server->run(etherlink_cmdline->h2t_t2h_mem_size, etherlink_cmdline->ip, etherlink_cmdline->port);
+        delete s_etherlink_server;
+        s_etherlink_server = nullptr;
+    }
 
-	return res;
+    return res;
 }
 
 // parse Input command line
-int parse_cmd_args(struct MMLinkCommandLine *mmlinkCmdLine, int argc, char *argv[])
+int parse_cmd_args(EtherlinkCommandLine *etherlink_cmdline, int argc, char *argv[])
 {
-	int getopt_ret   = 0;
     int option_index = 0;
     int c;
 
     const char *GETOPT_STRING = "hp:i:v";
 
-struct option longopts[] = {
-	{ "help",        no_argument,       NULL, 'h' },
-	{ "version",     no_argument,       NULL, 'v' },
-	{ "port",        required_argument, NULL, 'p' },
-	{ "ip",          required_argument, NULL, 'i' },
-	{ 0,             0,                 0,    0   }
-};
+    struct option longopts[] = {
+        {"help", no_argument, NULL, 'h'},
+        {"version", no_argument, NULL, 'v'},
+        {"h2t-t2h-mem-size", required_argument, NULL, 'm'},
+        {"port", required_argument, NULL, 'p'},
+        {"ip", required_argument, NULL, 'i'},
+        {0, 0, 0, 0}};
 
     opterr = 0; // Suppress stderr output from getopt_long upon unrecognized options
-    optind = 0;     // Reset getopt_long position.
+    optind = 0; // Reset getopt_long position.
     
     while(1)
     {
@@ -206,95 +186,139 @@ struct option longopts[] = {
                 break;
                 
             case 'h':
-				// Command line help
-				MMLinkAppShowHelp();
-				return -2;
-				break;
+                // Command line help
+                return -2;
+                break;
 
-			case 'p':
-				// TCP Port
-				mmlinkCmdLine->port = parse_integer_arg("Port");
-				break;
+            case 'm':
+                // H2T/T2H Mem Size
+                etherlink_cmdline->h2t_t2h_mem_size = parse_integer_arg("h2t-t2h-mem-size");
+                if (etherlink_cmdline->h2t_t2h_mem_size == 0){
+                    return -3;
+                }
+                break;
 
-			case 'i':
-				// Ip address
-				strncpy(mmlinkCmdLine->ip, optarg, 15);
-				mmlinkCmdLine->ip[15] = '\0';
-				break;
-		}
-	}        
+            case 'p':
+                // TCP Port
+                etherlink_cmdline->port = parse_integer_arg("port");
+                break;
 
-	return 0;
+            case 'i':
+                // Ip address
+                strncpy(etherlink_cmdline->ip, optarg, 15);
+                etherlink_cmdline->ip[15] = '\0';
+                break;
+        }
+    }
+
+    if (etherlink_cmdline->ip[0] == '\0')
+    {
+        strncpy(etherlink_cmdline->ip, "0.0.0.0", sizeof(etherlink_cmdline->ip));
+    }
+
+    return 0;
 }
 
 long parse_integer_arg(const char *name)
 {
-	long ret = 0;
+    long ret = 0;
 
-	bool is_all_digit = true;
-	char *p;
-	typedef int (*DIGIT_TEST_FN)(int c);
-	DIGIT_TEST_FN is_acceptabl_digit;
-	if (optarg[0] == '0' && (optarg[1] == 'x' || optarg[1] == 'X'))
-	{
-		is_acceptabl_digit = isxdigit;
-		optarg += 2; // trim the "0x" portion
-	}
-	else
-	{
-		is_acceptabl_digit = isdigit;
-	}
+    bool is_all_digit = true;
+    char *p;
+    typedef int (*DIGIT_TEST_FN)(int c);
+    DIGIT_TEST_FN is_acceptabl_digit;
+    if (optarg[0] == '0' && (optarg[1] == 'x' || optarg[1] == 'X'))
+    {
+        is_acceptabl_digit = isxdigit;
+        optarg += 2; // trim the "0x" portion
+    }
+    else
+    {
+        is_acceptabl_digit = isdigit;
+    }
 
-	for (p = optarg; (*p) != '\0'; ++p)
-	{
-		if (!is_acceptabl_digit(*p))
-		{
-			is_all_digit = false;
-			break;
-		}
-	}
+    for (p = optarg; (*p) != '\0'; ++p)
+    {
+        if (!is_acceptabl_digit(*p))
+        {
+            is_all_digit = false;
+            break;
+        }
+    }
 
-	if (is_acceptabl_digit == isxdigit)
-	{
-		optarg -= 2; // restore the "0x" portion
-	}
+    if (is_acceptabl_digit == isxdigit)
+    {
+        optarg -= 2; // restore the "0x" portion
+    }
 
-	if (is_all_digit)
-	{
-		if (sizeof(size_t) <= sizeof(long))
-		{
-			ret = (size_t)strtol(optarg, NULL, 0);
-			if (errno == ERANGE)
-			{
-				ret = 0;
-				printf("%s value is too big. %s is provided; maximum accepted is %ld", name, optarg, LONG_MAX);
-			}
-		}
-		else
-		{
-			long span, span_c;
-			span = strtol(optarg, NULL, 0);
-			if (errno == ERANGE)
-			{
-				ret = 0;
-				printf("%s value is too big. %s is provided; maximum accepted is %ld", name, optarg, LONG_MAX);
-			}
-			else
-			{
-				ret = (size_t)span;
-				span_c = ret;
-				if (span != span_c)
-				{
-					printf("%s value is too big. %s is provided; maximum accepted is %ld", name, optarg, (size_t)-1);
-					ret = 0;
-				}
-			}
-		}
-	}
-	else
-	{
-		printf("Invalid argument value type is provided. A integer value is expected. %s is provided.", optarg);
-	}
+    if (is_all_digit)
+    {
+        if (sizeof(size_t) <= sizeof(long))
+        {
+            ret = (size_t)strtol(optarg, NULL, 0);
+            if (errno == ERANGE)
+            {
+                ret = 0;
+                printf("ERROR: %s value is too big. %s is provided; maximum accepted is %ld\n", name, optarg, LONG_MAX);
+            }
+        }
+        else
+        {
+            long span, span_c;
+            span = strtol(optarg, NULL, 0);
+            if (errno == ERANGE)
+            {
+                ret = 0;
+                printf("ERROR: %s value is too big. %s is provided; maximum accepted is %ld\n", name, optarg, LONG_MAX);
+            }
+            else
+            {
+                ret = (size_t)span;
+                span_c = ret;
+                if (span != span_c)
+                {
+                    printf("ERROR: %s value is too big. %s is provided; maximum accepted is %ld\n", name, optarg, (size_t)-1);
+                    ret = 0;
+                }
+            }
+        }
+    }
+    else
+    {
+        printf("ERROR: Invalid argument value type is provided. A integer value is expected. %s is provided.\n", optarg);
+    }
 
-	return ret;
+    return ret;
+}
+
+void etherlink_sig_handler(int signo)
+{
+    if (signo == SIGINT)
+    {
+        printf("\nINFO: Signal, SIGINT, was triggered; the program is terminating.\n");
+        fpga_platform_cleanup();
+        if (s_etherlink_server != nullptr)
+        {
+            delete s_etherlink_server;
+            s_etherlink_server = nullptr;
+        }
+        exit(0);
+    }
+    else
+    {
+        printf("WARNING: Unexpected signal, %d, triggered; it is ignored\n", signo);
+    }
+}
+
+void install_sigint_handler()
+{
+    struct sigaction sig_action;
+    memset(&sig_action, 0, sizeof(sig_action));
+    sig_action.sa_handler = &etherlink_sig_handler;
+    sig_action.sa_flags = 0;
+
+    if (sigaction(SIGINT, &sig_action, NULL) != 0)
+    {
+        printf("WARNING: SIGINT handler installment failed; this program will not terminate gracefully.\n");
+    }
 }

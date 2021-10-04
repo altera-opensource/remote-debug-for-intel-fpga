@@ -26,14 +26,16 @@
 
 #pragma once
 
-#include "remote_dbg.h"
+#include <stddef.h>
 
-class stream_dbg : public remote_dbg
+#ifdef __cplusplus
+extern "C"
 {
-public:
-  stream_dbg(){}
-  virtual ~stream_dbg(){}
-  int run(const char *address, int port) override;
-  void terminate() override;
- 
-};
+#endif
+
+int start_st_dbg_transport_server_over_tcpip(size_t h2t_t2h_mem_size, int port);
+void terminate_st_dbg_transport_server_over_tcpip();
+
+#ifdef __cplusplus
+}
+#endif

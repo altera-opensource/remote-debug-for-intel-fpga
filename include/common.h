@@ -24,13 +24,13 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,  EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef STI_NOSYS_PROT_COMMON_H_INCLUDED
-#define STI_NOSYS_PROT_COMMON_H_INCLUDED
+#pragma once
 
 // Enumerations
 typedef enum {
     OK,
-    FAILURE
+    FAILURE,
+    INIT_ERR
 } RETURN_CODE;
 
 #define MAX_MACRO(a,b) (((a)>(b))?(a):(b))
@@ -52,5 +52,3 @@ int get_random_id();
 #ifdef __cplusplus
 }
 #endif
-
-#endif //STI_NOSYS_PROT_COMMON_H_INCLUDED

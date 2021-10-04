@@ -55,6 +55,11 @@ static CIRCLE_BUFF g_h2t_rx_cbuff;
 static CIRCLE_BUFF g_mgmt_rx_cbuff;
 
 int init_driver() {
+
+#if !defined(FPGA_PLATFORM_HAS_NATIVE_MMIO_READ_32) || !defined(FPGA_PLATFORM_HAS_NATIVE_MMIO_WRITE_32)
+    fpga_throw_runtime_exception(__FUNCTION__, __FILE__, __LINE__, "lack of native 32-bit operation for the stream debug driver.");
+#endif
+
     int ret = 0;
     int num_interface = fpga_get_num_of_interfaces();
     if (num_interface == 1)
@@ -69,34 +74,34 @@ int init_driver() {
         }
 
 #ifdef MMIO_LOG
-    g_mmio_log_f = fopen("mmlink_mmio_log.csv", "w");
+        g_mmio_log_f = fopen("mmlink_mmio_log.csv", "w");
+        
+        ::setbuf(g_mmio_log_f, NULL);
+        ::fprintf(g_mmio_log_f, "CSR base_addr:64'h%llx\n"
+                                "H2T base_addr:64'h%llx\n"
+                                "T2H base_addr:64'h%llx\n"
+                                "line_no,function,type,base_addr,offset,value\n",
+                                g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR, g_std_dbg_ip_info.H2T_MEM_BASE_ADDR, g_std_dbg_ip_info.T2H_MEM_BASE_ADDR);
+#endif
     
-    ::setbuf(g_mmio_log_f, NULL);
-    ::fprintf(g_mmio_log_f, "CSR base_addr:64'h%llx\n"
-                            "H2T base_addr:64'h%llx\n"
-                            "T2H base_addr:64'h%llx\n"
-                            "line_no,function,type,base_addr,offset,value\n",
-                            g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR, g_std_dbg_ip_info.H2T_MEM_BASE_ADDR, g_std_dbg_ip_info.T2H_MEM_BASE_ADDR);
-    #endif
-    
-    if (!g_dbg_info_set) {
-        return INIT_ERROR_CODE_MISSING_INFO;
-    }
-    if (check_version_and_type() != 0) {
-        return INIT_ERROR_CODE_INCOMPATIBLE_IP;
-    }
-    
-    assert_h2t_t2h_reset();
-    g_h2t_descriptor_write_idx = 0;
-    g_h2t_descriptor_read_idx = 0;
-    g_mgmt_descriptor_write_idx = 0;
-    g_mgmt_descriptor_read_idx = 0;
-    g_h2t_descriptor_slots_available = (unsigned short)fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_H2T_AVAILABLE_SLOTS);
-    g_mgmt_descriptor_slots_available = (unsigned short)fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_MGMT_AVAILABLE_SLOTS);
-    g_t2h_sop = 1;
-    g_mgmt_rsp_sop = 1;
-    cbuff_init(&g_h2t_rx_cbuff, g_std_dbg_ip_info.H2T_MEM_BASE_ADDR, g_std_dbg_ip_info.H2T_MEM_SZ);
-    cbuff_init(&g_mgmt_rx_cbuff, g_std_dbg_ip_info.MGMT_MEM_BASE_ADDR, g_std_dbg_ip_info.MGMT_MEM_SZ);
+        if (!g_dbg_info_set) {
+            return INIT_ERROR_CODE_MISSING_INFO;
+        }
+        if (check_version_and_type() != 0) {
+            return INIT_ERROR_CODE_INCOMPATIBLE_IP;
+        }
+        
+        assert_h2t_t2h_reset();
+        g_h2t_descriptor_write_idx = 0;
+        g_h2t_descriptor_read_idx = 0;
+        g_mgmt_descriptor_write_idx = 0;
+        g_mgmt_descriptor_read_idx = 0;
+        g_h2t_descriptor_slots_available = (unsigned short)fpga_read_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_H2T_AVAILABLE_SLOTS);
+        g_mgmt_descriptor_slots_available = (unsigned short)fpga_read_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_MGMT_AVAILABLE_SLOTS);
+        g_t2h_sop = 1;
+        g_mgmt_rsp_sop = 1;
+        cbuff_init(&g_h2t_rx_cbuff, g_std_dbg_ip_info.H2T_MEM_BASE_ADDR, g_std_dbg_ip_info.H2T_MEM_SZ);
+        cbuff_init(&g_mgmt_rx_cbuff, g_std_dbg_ip_info.MGMT_MEM_BASE_ADDR, g_std_dbg_ip_info.MGMT_MEM_SZ);
     }
     else
     {
@@ -119,7 +124,7 @@ void set_design_info(ST_DBG_IP_DESIGN_INFO info)
 // the associated memory.
 uint32_t get_h2t_buffer(size_t sz) {
     // First update available descriptor slots, and free space in the buffer
-    unsigned short freed_descriptor_slots = (unsigned short)fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_H2T_AVAILABLE_SLOTS) - g_h2t_descriptor_slots_available;
+    uint32_t freed_descriptor_slots = fpga_read_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_H2T_AVAILABLE_SLOTS) - g_h2t_descriptor_slots_available;
     if (freed_descriptor_slots > 0) {
         g_h2t_descriptor_slots_available += freed_descriptor_slots;
         size_t bytes_freed = 0;
@@ -164,7 +169,7 @@ int push_h2t_data(H2T_PACKET_HEADER *header, uint32_t payload) {
 // the associated memory.
 uint32_t get_mgmt_buffer(size_t sz) {
     // First update available descriptor slots, and free space in the buffer
-    unsigned short freed_descriptor_slots = (unsigned short)fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_MGMT_AVAILABLE_SLOTS) - g_mgmt_descriptor_slots_available;
+    uint32_t freed_descriptor_slots = fpga_read_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_MGMT_AVAILABLE_SLOTS) - g_mgmt_descriptor_slots_available;
     if (freed_descriptor_slots > 0) {
         g_mgmt_descriptor_slots_available += freed_descriptor_slots;
         size_t bytes_freed = 0;
@@ -266,20 +271,20 @@ int get_mgmt_rsp_data(MGMT_PACKET_HEADER *header, uint32_t *payload) {
 
 void mgmt_rsp_data_complete()
 {
-    fpga_write_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_MGMT_RSP_DESCRIPTORS_DONE, 1);
+    fpga_write_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_MGMT_RSP_DESCRIPTORS_DONE, 1);
 }
 
 void set_loopback_mode(int val) {
-    unsigned long rd = (unsigned long)fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK);
+    uint32_t rd = fpga_read_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK);
     if (val == 1) {
-        fpga_write_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, rd | ST_DBG_IP_CONFIG_LOOPBACK_FIELD);
+        fpga_write_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, rd | ST_DBG_IP_CONFIG_LOOPBACK_FIELD | ST_DBG_IP_CONFIG_H2T_T2H_RESET_FIELD);
     } else {
-        fpga_write_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, rd & ~ST_DBG_IP_CONFIG_LOOPBACK_FIELD);
+        fpga_write_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, (rd & ~ST_DBG_IP_CONFIG_LOOPBACK_FIELD) | ST_DBG_IP_CONFIG_H2T_T2H_RESET_FIELD);
     }
 }
 
 int get_loopback_mode() {
-    unsigned long rd = (unsigned long)fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK);
+    uint32_t rd = fpga_read_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK);
     if ((rd & ST_DBG_IP_CONFIG_LOOPBACK_FIELD) > 0) {
         return 1;
     } else {
@@ -288,16 +293,16 @@ int get_loopback_mode() {
 }
 
 void enable_interrupts(int val) {
-    unsigned long rd = (unsigned long)fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK);
+    uint32_t rd = fpga_read_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK);
     if (val == 1) {
-        fpga_write_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, rd | ST_DBG_IP_CONFIG_ENABLE_INT_FIELD);
+        fpga_write_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, rd | ST_DBG_IP_CONFIG_ENABLE_INT_FIELD);
     } else {
-        fpga_write_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, rd & ~ST_DBG_IP_CONFIG_ENABLE_INT_FIELD);
+        fpga_write_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, rd & ~ST_DBG_IP_CONFIG_ENABLE_INT_FIELD);
     }
 }
 
 int get_mgmt_support() {
-    unsigned long rd = (unsigned long)fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_MGMT_MGMT_RSP_DESC_DEPTH);
+    uint32_t rd = fpga_read_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_MGMT_MGMT_RSP_DESC_DEPTH);
     if (rd > 0) {
         return 1;
     } else {
@@ -307,9 +312,16 @@ int get_mgmt_support() {
 
 int check_version_and_type() {
     uint64_t type_version = fpga_read_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_TYPE);
-    unsigned long type = (unsigned long)type_version;
-    unsigned long version = (unsigned long)(type_version >> 32);
+    uint32_t type = (uint32_t)type_version;
+    uint32_t version = (uint32_t)(type_version >> 32);
     if ((type != SUPPORTED_TYPE) || (version != SUPPORTED_VERSION)) {
+        if (type != SUPPORTED_TYPE) {
+            fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Signature is not read from hardware correctly.  Expect 0x%x, got 0x%x", SUPPORTED_TYPE, type);
+        }
+        if (version != SUPPORTED_VERSION)
+        {
+            fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Hardware version is not supported.  Expect %d, got %d", SUPPORTED_VERSION, version);
+        }
         return -1;
     } else {
         return 0;
@@ -318,7 +330,7 @@ int check_version_and_type() {
 
 void assert_h2t_t2h_reset()
 {
-    fpga_write_64(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, ST_DBG_IP_CONFIG_H2T_T2H_RESET_FIELD);
+    fpga_write_32(g_mmio_handle, g_std_dbg_ip_info.ST_DBG_IP_CSR_BASE_ADDR + ST_DBG_IP_CONFIG_RESET_AND_LOOPBACK, ST_DBG_IP_CONFIG_H2T_T2H_RESET_FIELD);
 }
 
 void memcpy64_fpga2host(int32_t fpga_buff, uint64_t *host_buff, size_t len)
