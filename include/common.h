@@ -36,8 +36,6 @@ typedef enum {
 #define MAX_MACRO(a,b) (((a)>(b))?(a):(b))
 #define MIN_MACRO(a,b) (((a)<(b))?(a):(b))
 
-#define USE_ARG_MACRO(arg) arg = arg
-
 #ifdef __cplusplus
 extern "C" {
 #endif

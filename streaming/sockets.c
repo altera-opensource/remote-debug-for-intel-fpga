@@ -323,8 +323,6 @@ const char *get_last_socket_error_msg(char *buff, size_t buff_sz) {
         return NULL;
     }
 #else
-    USE_ARG_MACRO(buff);
-    USE_ARG_MACRO(buff_sz);
     if (errno > 0) {
         return strerror(errno);
     } else {

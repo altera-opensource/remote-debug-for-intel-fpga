@@ -88,13 +88,23 @@ static void *uio_interrupt_thread();
 
 void *uio_interrupt_thread()
 {
-    int fd = 0;
-
     while(1)
     {
-        pthread_rwlock_rdlock(&s_intLock);
+        int rc;
+
+        rc = pthread_rwlock_rdlock(&s_intLock);
+        if (rc != 0)
+        {
+            fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "InterruptThread failed to acquire OS lock to handle interrupt.");
+            break;
+        }
         uint16_t flags = s_intFlags;
-        pthread_rwlock_unlock(&s_intLock);
+        rc = pthread_rwlock_unlock(&s_intLock);
+        if (rc != 0)
+        {
+            fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "InterruptThread failed to release OS lock to handle interrupt.");
+            break;
+        }
 
         if(!(flags & FPGA_PLATFORM_INT_THREAD_EXIT))
         {
@@ -102,14 +112,16 @@ void *uio_interrupt_thread()
             // Current implementaion support 1 vector
             if(g_uio_fpga_interface_info_vec[0].interrupt_enable)
             {
-               fd = open(s_uio_drv_path, O_RDWR);
-               if(fd < 0)
+                int fd = 0;
+
+                fd = open(s_uio_drv_path, O_RDWR);
+                if(fd < 0)
                 {
-                   fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread failed to open UIO device" );
+                    fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread failed to open UIO device" );
                     break;
                 }
 
-               struct pollfd fds = {
+                struct pollfd fds = {
                    .fd = fd,
                    .events = POLLIN,
                    };
@@ -131,17 +143,22 @@ void *uio_interrupt_thread()
                         g_uio_fpga_interface_info_vec[0].isr_callback(g_uio_fpga_interface_info_vec[0].isr_context);
                     } else {
                         fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread ISR is NULL ptr" );
-			break;
+                        break;
                     }
                 }
 
-                if(fd > 0)
-	            close(fd);
-
+                if(fd > 0){
+                    close(fd);
+                }
             } else {
 
                 // Interrupt Thread blocked until sem_post
-               sem_wait(&g_intSem);
+                rc = sem_wait(&g_intSem);
+                if (rc != 0)
+                {
+                    fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "InterruptThread failed to acquire OS lock to handle interrupt.");
+                    break;
+                }
            }
        }
        else
@@ -539,11 +556,18 @@ bool uio_scan_interfaces()
     if(s_uio_single_component_mode)
     {
         g_uio_fpga_interface_info_vec = (FPGA_INTERFACE_INFO *)calloc(1, sizeof(FPGA_INTERFACE_INFO));
-        g_uio_fpga_interface_info_vec_size = 1;
+        if (g_uio_fpga_interface_info_vec != NULL)
+        {
+            g_uio_fpga_interface_info_vec_size = 1;
 
-        g_uio_fpga_interface_info_vec[0].base_address = (void *)((char *)s_uio_mmap_ptr + s_uio_start_addr);
-        g_uio_fpga_interface_info_vec[0].is_mmio_opened = false;
-        g_uio_fpga_interface_info_vec[0].is_interrupt_opened = false;
+            g_uio_fpga_interface_info_vec[0].base_address = (void *)((char *)s_uio_mmap_ptr + s_uio_start_addr);
+            g_uio_fpga_interface_info_vec[0].is_mmio_opened = false;
+            g_uio_fpga_interface_info_vec[0].is_interrupt_opened = false;
+        }
+        else
+        {
+            ret = false;
+        }
     }
 
     return ret;
@@ -552,17 +576,26 @@ bool uio_scan_interfaces()
 
 bool uio_create_unit_test_sw_model()
 {
+    bool  ret = true;
+
     g_uio_fpga_interface_info_vec = (FPGA_INTERFACE_INFO *)calloc(1, sizeof(FPGA_INTERFACE_INFO));
-    g_uio_fpga_interface_info_vec_size = 1;
-    
-    g_uio_fpga_interface_info_vec[0].base_address = malloc(s_uio_addr_span);
-    // Preset mem with all 1s
-    memset(g_uio_fpga_interface_info_vec[0].base_address, 0xFF, s_uio_addr_span);
-    
-    g_uio_fpga_interface_info_vec[0].is_mmio_opened = false;
-    g_uio_fpga_interface_info_vec[0].is_interrupt_opened = false;
-    
-    return true;
+    if (g_uio_fpga_interface_info_vec != NULL)
+    {
+        g_uio_fpga_interface_info_vec_size = 1;
+
+        g_uio_fpga_interface_info_vec[0].base_address = malloc(s_uio_addr_span);
+        // Preset mem with all 1s
+        memset(g_uio_fpga_interface_info_vec[0].base_address, 0xFF, s_uio_addr_span);
+
+        g_uio_fpga_interface_info_vec[0].is_mmio_opened = false;
+        g_uio_fpga_interface_info_vec[0].is_interrupt_opened = false;
+    }
+    else
+    {
+        ret = false;
+    }
+
+    return ret;
 }
 
 void fpga_platform_register_printf(FPGA_MSG_PRINTF msg_printf)
