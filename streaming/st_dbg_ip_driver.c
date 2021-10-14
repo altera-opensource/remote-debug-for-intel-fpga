@@ -26,6 +26,7 @@
 
 #include <string.h>
 #include <stdint.h>
+#include "intel_fpga_platform.h"
 #include "intel_fpga_api.h"
 
 #include "constants.h"
