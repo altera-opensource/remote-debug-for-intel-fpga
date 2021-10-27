@@ -82,6 +82,7 @@ static void uio_print_configuration();
 static bool uio_open_driver();
 static bool uio_map_mmio();
 static bool uio_scan_interfaces();
+static bool uio_create_interrupt_thread();
 static bool uio_create_unit_test_sw_model();
 
 static void *uio_interrupt_thread();
@@ -212,12 +213,7 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
     if(s_uio_single_component_mode)
     {
         // Interrupt Thread creation and sync init
-        sem_init(&g_intSem, 0, 0);
-        pthread_rwlock_init(&s_intLock,0);
-        pthread_rwlock_wrlock(&s_intLock);
-        s_intFlags = 0;
-        pthread_rwlock_unlock(&s_intLock);
-        pthread_create(&s_intThread_id, NULL, uio_interrupt_thread, NULL);
+        uio_create_interrupt_thread();
     }
 
     return ret;
@@ -242,23 +238,31 @@ void fpga_platform_cleanup()
 
     if(s_intThread_id != 0)
     {
-        pthread_rwlock_wrlock(&s_intLock);
-        s_intFlags = s_intFlags | FPGA_PLATFORM_INT_THREAD_EXIT;
-        pthread_rwlock_unlock(&s_intLock);
-
-        status = sem_getvalue(&g_intSem, &retVal);
-        if(status == 0)
+        status = pthread_rwlock_wrlock(&s_intLock);
+        if (status == 0)
         {
-            if(retVal <= 0)
-                sem_post(&g_intSem);
+            s_intFlags = s_intFlags | FPGA_PLATFORM_INT_THREAD_EXIT;
+            status = pthread_rwlock_unlock(&s_intLock);
+
+            status = status == 0 ? 0 : sem_getvalue(&g_intSem, &retVal);
+            if (status == 0)
+            {
+                if (retVal <= 0)
+                    status = sem_post(&g_intSem);
+            }
         }
 
-       if(pthread_join(s_intThread_id, &ret) != 0)
-       {
-           fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "Interrupt Thread join failed" );
-       } else {
-	   fpga_msg_printf( FPGA_MSG_PRINTF_DEBUG, "Interrupt Thread join successfully" );
-       }
+        if (status != 0)
+        {
+            fpga_throw_runtime_exception("fpga_platform_cleanup", __FILE__, __LINE__, "System error upon cleanup.");
+        }
+        if(pthread_join(s_intThread_id, &ret) != 0)
+        {
+            fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "Interrupt Thread join failed" );
+        } else 
+        {
+            fpga_msg_printf( FPGA_MSG_PRINTF_DEBUG, "Interrupt Thread join successfully" );
+        }
 
     }
 
@@ -573,6 +577,22 @@ bool uio_scan_interfaces()
     return ret;
 }
 
+bool uio_create_interrupt_thread() 
+{
+    bool ret;
+    int rc;
+
+    rc = sem_init(&g_intSem, 0, 0);
+    rc = rc == 0 ? 0 : pthread_rwlock_init(&s_intLock, 0);
+    rc = rc == 0 ? 0 : pthread_rwlock_wrlock(&s_intLock);
+    s_intFlags = 0;
+    rc = rc == 0 ? 0 : pthread_rwlock_unlock(&s_intLock);
+    rc = rc == 0 ? 0 : pthread_create(&s_intThread_id, NULL, uio_interrupt_thread, NULL);
+
+    ret = rc == 0;
+
+    return ret;
+}
 
 bool uio_create_unit_test_sw_model()
 {

@@ -430,7 +430,7 @@ const char *set_driver_parameter(char *cmd, SERVER_CONN *server_conn) {
         }
     	param_name += SET_DRIVER_PARAM_CMD_LEN;
         const char *param_value = strstr(param_name, " ") + 1;
-        size_t param_name_len = (size_t)(param_value - param_name) - 1;
+        size_t param_name_len = (size_t)(param_value - param_name) - (size_t)1;
         for (size_t i = 0; i < MIN_MACRO(param_name_len, MAX_DRIVER_PARAM_NAME_LEN); ++i) {
             param_name_buff[i] = param_name[i];
         }
