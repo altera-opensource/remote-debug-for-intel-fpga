@@ -132,6 +132,7 @@ void *uio_interrupt_thread()
                 if(ret < 0)
                 {
                    fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread failed to re-Arm UIO interrupt" );
+                   close(fd);
                    break;
                 }
 
@@ -213,7 +214,10 @@ bool fpga_platform_init(unsigned int argc, const char *argv[])
     if(s_uio_single_component_mode)
     {
         // Interrupt Thread creation and sync init
-        uio_create_interrupt_thread();
+        if(uio_create_interrupt_thread() == false)
+        {
+            goto err_open;
+        }
     }
 
     return ret;
@@ -583,11 +587,23 @@ bool uio_create_interrupt_thread()
     int rc;
 
     rc = sem_init(&g_intSem, 0, 0);
-    rc = rc == 0 ? 0 : pthread_rwlock_init(&s_intLock, 0);
-    rc = rc == 0 ? 0 : pthread_rwlock_wrlock(&s_intLock);
+    if (rc == 0)
+    {
+        rc = pthread_rwlock_init(&s_intLock, 0);
+    }
+    if (rc == 0)
+    {
+        rc = pthread_rwlock_wrlock(&s_intLock);
+    }
     s_intFlags = 0;
-    rc = rc == 0 ? 0 : pthread_rwlock_unlock(&s_intLock);
-    rc = rc == 0 ? 0 : pthread_create(&s_intThread_id, NULL, uio_interrupt_thread, NULL);
+    if (rc == 0)
+    {
+        rc = pthread_rwlock_unlock(&s_intLock);
+    }
+    if (rc == 0)
+    {
+        rc = pthread_create(&s_intThread_id, NULL, uio_interrupt_thread, NULL);
+    }
 
     ret = rc == 0;
 
