@@ -119,7 +119,6 @@ void *uio_interrupt_thread()
                 if(fd < 0)
                 {
                     fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread failed to open UIO device" );
-                    close(fd);
                     break;
                 }
 
