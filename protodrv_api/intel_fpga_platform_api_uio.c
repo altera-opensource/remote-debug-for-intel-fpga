@@ -119,6 +119,7 @@ void *uio_interrupt_thread()
                 if(fd < 0)
                 {
                     fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread failed to open UIO device" );
+                    close(fd);
                     break;
                 }
 
@@ -145,6 +146,7 @@ void *uio_interrupt_thread()
                         g_uio_fpga_interface_info_vec[0].isr_callback(g_uio_fpga_interface_info_vec[0].isr_context);
                     } else {
                         fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread ISR is NULL ptr" );
+                        close(fd);
                         break;
                     }
                 }
