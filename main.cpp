@@ -62,6 +62,11 @@ static void show_help(const char *program)
         program, program, program);
 }
 
+static void show_version()
+{
+     printf("etherlink v1.0\n");
+}
+
 static IRemoteDebug *s_etherlink_server = nullptr;
 
 // Streaming debug command line struct
@@ -103,10 +108,28 @@ int main( int argc, char** argv )
     EtherlinkCommandLine etherlink_cmdline = {4096, 0, {0,}};
     int rc = parse_cmd_args(&etherlink_cmdline, argc, argv);
     if ( rc ) {
+
+        switch(rc)
+        {
+            case -2:
+                show_help(argv[0]);
+                break;
+
+            case -4:
+                show_version();
+                break;
+
+            default:
+                printf("ERROR: Error scanning command line; exiting\n\n");
+
+        }
+/*
         if ( rc != -2 ){
             printf("ERROR: Error scanning command line; exiting\n\n");
         }
+
         show_help(argv[0]);
+*/
         goto out_exit;
     }
 
@@ -182,7 +205,7 @@ int parse_cmd_args(EtherlinkCommandLine *etherlink_cmdline, int argc, char *argv
         switch(c)
         {
             case 'v':
-                
+                return -4;
                 break;
                 
             case 'h':
