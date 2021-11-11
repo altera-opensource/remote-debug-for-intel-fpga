@@ -39,6 +39,7 @@
 #include "intel_fpga_platform_api.h"
 #include "remote_dbg.h"
 #include "stream_dbg.h"
+#include "app_version.h"
 
 // etherlink Command line input help
 static void show_help(const char *program)
@@ -64,7 +65,7 @@ static void show_help(const char *program)
 
 static void show_version()
 {
-     printf("etherlink v1.0\n");
+     printf("%s-%s\n", APP_VERSION_BASE,GIT_VERSION);
 }
 
 static IRemoteDebug *s_etherlink_server = nullptr;
