@@ -57,6 +57,8 @@ typedef int FPGA_MMIO_INTERFACE_HANDLE;
 #define FPGA_MMIO_INTERFACE_INVALID_HANDLE -1
 typedef int FPGA_INTERRUPT_HANDLE;
 #define FPGA_INTERRUPT_INVALID_HANDLE -1
+typedef void *FPGA_PLATFORM_PHYSICAL_MEM_ADDR_TYPE;
+
 typedef struct
 {
     uint8_t                      version;       //!< Identify the version of the interface.

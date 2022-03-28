@@ -80,12 +80,28 @@ static inline void fpga_write_32(FPGA_MMIO_INTERFACE_HANDLE handle, uint32_t off
 
 static inline uint64_t fpga_read_64(FPGA_MMIO_INTERFACE_HANDLE handle, uint32_t offset)
 {
+#ifndef FPGA_PLATFORM_FORCE_64BIT_MMIO_EMULATION_WITH_32BIT
     return *((volatile uint64_t *)((volatile uint8_t *)fpga_uio_get_base_address(handle) + offset));
+#else
+    // This emulation is needed when Intel FPGA PCIe Memory Mapped Bridge IP is used to implement the PCIe function.
+    // Little-endian system is assumed.
+    uint64_t data = fpga_read_32(handle, offset);
+    data |= (uint64_t)fpga_read_32(handle, offset + 4) << 32;
+
+    return data;
+#endif
 }
 
 static inline void fpga_write_64(FPGA_MMIO_INTERFACE_HANDLE handle, uint32_t offset, uint64_t value)
 {
+#ifndef FPGA_PLATFORM_FORCE_64BIT_MMIO_EMULATION_WITH_32BIT
     *((volatile uint64_t *)((volatile uint8_t *)fpga_uio_get_base_address(handle) + offset)) = value;
+#else
+    // This emulation is needed when Intel FPGA PCIe Memory Mapped Bridge IP is used to implement the PCIe function.
+    // Little-endian system is assumed.
+    fpga_write_32(handle, offset, (uint32_t)value);
+    fpga_write_32(handle, offset + 4, (uint32_t)(value >> 32));
+#endif
 }
 
 static inline void fpga_read_512(FPGA_MMIO_INTERFACE_HANDLE handle, uint32_t offset, uint8_t *value)

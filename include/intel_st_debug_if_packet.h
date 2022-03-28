@@ -27,7 +27,7 @@
 #pragma once
 
 
-#include "common.h"
+#include "intel_st_debug_if_common.h"
 
 #define SIZEOF_PACKET_GUARDBAND 4
 

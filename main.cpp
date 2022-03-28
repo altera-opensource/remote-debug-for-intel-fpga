@@ -37,8 +37,8 @@
 
 
 #include "intel_fpga_platform_api.h"
-#include "remote_dbg.h"
-#include "stream_dbg.h"
+#include "intel_st_debug_if_remote_dbg.h"
+#include "intel_st_debug_if_stream_dbg.h"
 #include "app_version.h"
 
 // etherlink Command line input help
@@ -58,7 +58,7 @@ static void show_help(const char *program)
         " --help, -h                                print the usage description\n"
         "\n"
         "Note:\n"
-        " In the device tree, the address span of the whole JTAP over protocol interface should be bound into the specified UIO driver.\n"
+        " In the device tree, the address span of the whole JTAG over protocol interface should be bound into the specified UIO driver.\n"
         " Typically, the base address starts at 0x0.\n\n",
         program, program, program);
 }
@@ -95,13 +95,17 @@ public:
     virtual ~StreamingDebug(){}
     int run(size_t h2t_t2h_mem_size, const char * /*unused*/, int port) override
     {
-        return start_st_dbg_transport_server_over_tcpip(h2t_t2h_mem_size, port);
+        const FPGA_MMIO_INTERFACE_HANDLE MMIO_HANDLE = 0; // Only 1 IP instance is supported.
+        init_st_dbg_transport_server_over_tcpip(&m_server_context, MMIO_HANDLE, h2t_t2h_mem_size, port);
+        return start_st_dbg_transport_server_over_tcpip(&m_server_context);
     }
     void terminate() override
     {
         terminate_st_dbg_transport_server_over_tcpip();
     }
 
+private:
+    intel_remote_debug_server_context m_server_context;
 };
 
 int main( int argc, char** argv )
@@ -141,7 +145,7 @@ int main( int argc, char** argv )
 
     if(fpga_platform_init(argc, (const char **)argv) == false)
     {
-        printf("ERROR: Platform failed to initilize; exiting\n\n");
+        printf("ERROR: Platform failed to initialize; exiting\n\n");
         show_help(argv[0]);
         rc = -1;
         goto out_exit;

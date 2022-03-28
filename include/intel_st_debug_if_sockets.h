@@ -26,23 +26,27 @@
 
 #pragma once
 
-#include "common.h"
-#include "platform.h"
+#include <stdint.h>
+
+#include "intel_st_debug_if_common.h"
+#include "intel_st_debug_if_platform.h"
 
 // Platform specific includes are best kept here -- otherwise
 // one can easily get in trouble if the order of inclusions
 // isn't correct to setup the 'STI_NOSYS_PROT_PLATFORM'
 // variable first...
 #if STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_WINDOWS
+    #pragma comment(lib, "ws2_32.lib")
     #include <winsock2.h>
     #include <WS2tcpip.h>
-    #define snprintf _snprintf
+    //#define snprintf _snprintf
     #define inet_pton InetPton
     #define poll WSAPoll
 #else
-    #if STI_NOSYS_PROT_PLATFORM == STI_PLATFORM_NIOS_INICHE
-        #include "ipport.h"
-        #include "tcpport.h"
+    #if STI_NOSYS_PROT_PLATFORM == STI_PLATFORM_NIOS_UC_TCPIP
+        #include "uc_tcp_ip.h"
+        // sti_nosys_prot code expects fd_set to be defined.
+        typedef struct fd_set fd_set;
     #else
         #include <sys/socket.h>
         #include <netinet/in.h>
@@ -74,11 +78,7 @@ SOCKET max_of(SOCKET *array, int size);
 #define TRUE 1
 #define FALSE 0
 
-// Nichestack doesn't support 'getsockopt' which is part of connect with timeout.
-// All good since the server doesn't need this function.
-#if STI_NOSYS_PROT_PLATFORM!=STI_PLATFORM_NIOS_INICHE
 RETURN_CODE connect_with_timeout(SOCKET fd, const struct sockaddr *serv_addr, const struct timeval timeout);
-#endif
 RETURN_CODE socket_send_all(SOCKET fd, const char * buff, const size_t len, int flags, ssize_t *bytes_sent);
 RETURN_CODE socket_send_all_t2h_data(SOCKET fd, uint64_t buff, const size_t len, int flags, ssize_t *bytes_sent);
 RETURN_CODE socket_recv_until_null_reached(SOCKET sock_fd, char *buff, const size_t max_len, int flags, ssize_t *bytes_recvd);

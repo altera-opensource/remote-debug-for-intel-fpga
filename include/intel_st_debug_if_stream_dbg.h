@@ -26,26 +26,23 @@
 
 #pragma once
 
-// Enumerations
-typedef enum {
-    OK,
-    FAILURE,
-    INIT_ERR
-} RETURN_CODE;
-
-#define MAX_MACRO(a,b) (((a)>(b))?(a):(b))
-#define MIN_MACRO(a,b) (((a)<(b))?(a):(b))
+#include <stddef.h>
+#include "intel_st_debug_if_st_dbg_ip_driver.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
-#include <stddef.h>
 
-void generate_expected_handle_message(char *buff, size_t buff_size, const char *sock_name, int handle);
-int parse_handle_id(const char *buff);
-void zero_mem(void *a, size_t length);
-void fill_mem(void *a, char c, size_t length);
-int get_random_id();
+typedef struct {
+  intel_stream_debug_if_driver_context driver_cxt ;
+  size_t h2t_t2h_mem_size ;
+  int port ;
+} intel_remote_debug_server_context;
+
+int start_st_dbg_transport_server_over_tcpip(intel_remote_debug_server_context *context);
+void init_st_dbg_transport_server_over_tcpip(intel_remote_debug_server_context *context, FPGA_MMIO_INTERFACE_HANDLE mmio_handle, size_t size, int port);
+void terminate_st_dbg_transport_server_over_tcpip();
 
 #ifdef __cplusplus
 }

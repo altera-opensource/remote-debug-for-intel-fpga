@@ -24,10 +24,10 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,  EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include "stream_dbg.h"
-#include "server.h"
-#include "st_dbg_ip_driver.h"
-#include "platform.h"
+#include "intel_st_debug_if_stream_dbg.h"
+#include "intel_st_debug_if_server.h"
+#include "intel_st_debug_if_st_dbg_ip_driver.h"
+#include "intel_st_debug_if_platform.h"
 #include "intel_fpga_api.h"
 
 #define SERVER_PORT_FILE ".intel_reserved_debug_server.port"
@@ -60,14 +60,14 @@ static SERVER_HW_CALLBACKS get_hw_callbacks() {
 
 // These addresses are of those that should be used with FPGA MMIO to gain access
 // to H2T, T2H, etc memories attached to ST DBG IP
-static ST_DBG_IP_DESIGN_INFO get_design_info(size_t h2t_t2h_mem_size)
+static ST_DBG_IP_DESIGN_INFO get_design_info(intel_remote_debug_server_context *context)
 {
   ST_DBG_IP_DESIGN_INFO result;
   result.ST_DBG_IP_CSR_BASE_ADDR = ST_DBG_IF_BASE;
   result.H2T_MEM_BASE_ADDR = JOP_MEM_BASE;
-  result.H2T_MEM_SZ = h2t_t2h_mem_size;
-  result.T2H_MEM_BASE_ADDR = JOP_MEM_BASE + h2t_t2h_mem_size;
-  result.T2H_MEM_SZ = h2t_t2h_mem_size;
+  result.H2T_MEM_SZ = context->h2t_t2h_mem_size;
+  result.T2H_MEM_BASE_ADDR = JOP_MEM_BASE + context->h2t_t2h_mem_size;
+  result.T2H_MEM_SZ = context->h2t_t2h_mem_size;
 #if ENABLE_MGMT != 0
   result.MGMT_MEM_BASE_ADDR = MGMT_MEM_BASE;
   result.MGMT_MEM_SZ = MGMT_MEM_SPAN;
@@ -82,11 +82,17 @@ static ST_DBG_IP_DESIGN_INFO get_design_info(size_t h2t_t2h_mem_size)
   return result;
 }
 
-int start_st_dbg_transport_server_over_tcpip(size_t h2t_t2h_mem_size, int port)
+void init_st_dbg_transport_server_over_tcpip(intel_remote_debug_server_context *context, FPGA_MMIO_INTERFACE_HANDLE mmio_handle, size_t size, int port)
+{
+  context->port = port;
+  context->h2t_t2h_mem_size = size;
+  context->driver_cxt.mmio_handle = mmio_handle; // TODO: this should be filled by the driver init(). driver_init() should be called here as well.
+}
+
+int start_st_dbg_transport_server_over_tcpip(intel_remote_debug_server_context *context)
 {
   int ret = 0;
-
-  ST_DBG_IP_DESIGN_INFO design_info = get_design_info(h2t_t2h_mem_size);
+  ST_DBG_IP_DESIGN_INFO design_info = get_design_info(context);
   set_design_info(design_info);
 
   SERVER_BUFFERS buffers = SERVER_BUFFERS_default;
@@ -108,9 +114,9 @@ int start_st_dbg_transport_server_over_tcpip(size_t h2t_t2h_mem_size, int port)
   server_conn.buff = &buffers;
   server_conn.hw_callbacks = get_hw_callbacks();
 
-    if (initialize_server((unsigned short)port, &server_conn, SERVER_PORT_FILE) == OK)
+    if (initialize_server((unsigned short)context->port, &server_conn, SERVER_PORT_FILE) == OK)
     {
-      ret = server_main(MULTIPLE_CLIENTS, &server_conn);
+      ret = server_main(&(context->driver_cxt), MULTIPLE_CLIENTS, &server_conn);
     }
     else
     {

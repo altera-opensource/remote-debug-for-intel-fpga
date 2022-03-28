@@ -24,16 +24,16 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,  EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+#include "intel_st_debug_if_sockets.h"
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
 
-#include "st_dbg_ip_driver.h"
-#include "sockets.h"
-#include "common.h"
-#include "constants.h"
+#include "intel_st_debug_if_st_dbg_ip_driver.h"
+#include "intel_st_debug_if_common.h"
+#include "intel_st_debug_if_constants.h"
 
 const struct timeval ZERO_TIMEOUT = { 0, 0 };
 
@@ -239,12 +239,18 @@ int set_boolean_socket_option(SOCKET socket_fd, int option, int option_val) {
 int set_tcp_no_delay(SOCKET socket_fd, int no_delay) {
 #if STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_WINDOWS
     return setsockopt(socket_fd, IPPROTO_TCP, TCP_NODELAY, (const char *)&no_delay, sizeof(no_delay));
+#elif STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_NIOS_UC_TCPIP
+    // For no delay, uC/TCP-IP *requires* a CPU_BOOLEAN.
+    CPU_BOOLEAN no_delay_bool = (no_delay != 0);
+    return setsockopt(socket_fd, IPPROTO_TCP, TCP_NODELAY, &no_delay_bool, sizeof(no_delay_bool));
 #else
     return setsockopt(socket_fd, IPPROTO_TCP, TCP_NODELAY, &no_delay, sizeof(no_delay));
 #endif
 }
 
 int set_linger_socket_option(SOCKET socket_fd, int l_onoff, int l_linger) {
+// uC/TCP-IP does not support linger
+#if STI_NOSYS_PROT_PLATFORM != STI_PLATFORM_NIOS_UC_TCPIP
     struct linger linger_opt_val;
 #if STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_WINDOWS
     linger_opt_val.l_linger = (u_short)l_linger;
@@ -254,7 +260,8 @@ int set_linger_socket_option(SOCKET socket_fd, int l_onoff, int l_linger) {
     linger_opt_val.l_linger = l_linger;
     linger_opt_val.l_onoff = l_onoff;
     return setsockopt(socket_fd, SOL_SOCKET, SO_LINGER, &linger_opt_val, sizeof(linger_opt_val));
-#endif
+#endif // end if STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_WINDOWS
+#endif // end if STI_NOSYS_PROT_PLATFORM != STI_PLATFORM_NIOS_UC_TCPIP
 }
 
 int set_socket_non_blocking(SOCKET socket_fd, int non_blocking) {

@@ -27,8 +27,9 @@
 #pragma once
 
 #include <stdlib.h>
-#include "packet.h"
-#include "platform.h"
+#include "intel_st_debug_if_packet.h"
+#include "intel_st_debug_if_platform.h"
+#include "intel_fpga_platform.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,6 +46,11 @@ extern "C" {
 // Customize here from FPGA design
 #define ST_DBG_IF_BASE 0x0000
 #define JOP_MEM_BASE 0x1000
+
+
+typedef struct {
+  FPGA_MMIO_INTERFACE_HANDLE  mmio_handle ;
+}  intel_stream_debug_if_driver_context;
 
 typedef struct {
     uint32_t ST_DBG_IP_CSR_BASE_ADDR;
@@ -63,9 +69,6 @@ typedef struct {
 } ST_DBG_IP_DESIGN_INFO;
 
 extern ST_DBG_IP_DESIGN_INFO g_std_dbg_ip_info;
-
-#define HW_LOOPBACK_PARAM "#HW_LOOPBACK"
-#define HW_LOOPBACK_PARAM_LEN 13
 
 // The ST Debug IP allows these to be queried dynamically, but since we are not using malloc,
 // I will reserve enough space for the upperlimit of how many descriptors the IP supports.
@@ -128,7 +131,7 @@ extern ST_DBG_IP_DESIGN_INFO g_std_dbg_ip_info;
 #define ST_DBG_IP_HOW_LONG_MASK 0x7FFFFFFF
 
 // Driver init
-int init_driver();
+int init_driver(intel_stream_debug_if_driver_context *context, FPGA_MMIO_INTERFACE_HANDLE mmio_handle);
 void set_design_info(ST_DBG_IP_DESIGN_INFO info);
 
 // H2T

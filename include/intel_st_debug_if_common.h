@@ -26,13 +26,30 @@
 
 #pragma once
 
+// Enumerations
+typedef enum {
+    OK,
+    FAILURE,
+    INIT_ERR
+} RETURN_CODE;
 
-// Platform defines
-#define STI_PLATFORM_NIOS_INICHE 1
-#define STI_PLATFORM_WINDOWS 2
-#define STI_PLATFORM_LINUX 3
+#define MAX_MACRO(a,b) (((a)>(b))?(a):(b))
+#define MIN_MACRO(a,b) (((a)<(b))?(a):(b))
 
-#define STI_NOSYS_PROT_PLATFORM STI_PLATFORM_LINUX
+#define HW_LOOPBACK_PARAM "#HW_LOOPBACK"
+#define HW_LOOPBACK_PARAM_LEN 13
 
-#define ENABLE_MGMT 0
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include <stddef.h>
 
+void generate_expected_handle_message(char *buff, size_t buff_size, const char *sock_name, int handle);
+int parse_handle_id(const char *buff);
+void zero_mem(void *a, size_t length);
+void fill_mem(void *a, char c, size_t length);
+int get_random_id();
+
+#ifdef __cplusplus
+}
+#endif

@@ -26,7 +26,7 @@
 
 #include <stdio.h>
 
-#include "packet.h"
+#include "intel_st_debug_if_packet.h"
 
 static unsigned char guardband_private[SIZEOF_PACKET_GUARDBAND] = { 0xDE, 0xAD, 0xBE, 0xEF };
 const unsigned char *const PACKET_GUARDBAND = guardband_private;

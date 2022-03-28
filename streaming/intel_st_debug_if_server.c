@@ -34,9 +34,9 @@
 
 #include "intel_fpga_api.h"
 
-#include "server.h"
-#include "packet.h"
-#include "constants.h"
+#include "intel_st_debug_if_server.h"
+#include "intel_st_debug_if_packet.h"
+#include "intel_st_debug_if_constants.h"
 
 const SERVER_BUFFERS SERVER_BUFFERS_default = {
     .ctrl_rx_buff = NULL,
@@ -160,23 +160,18 @@ RETURN_CODE bind_server_socket(SERVER_CONN *server_conn) {
     }
 
     // Set some options
+#if STI_NOSYS_PROT_PLATFORM!=STI_PLATFORM_NIOS_UC_TCPIP 
     if ((errors == 0) && (set_boolean_socket_option(server_conn->server_fd, SO_REUSEADDR, 1) < 0)) {
         print_last_socket_error("Failed to set socket options");
         ++errors;
     }
+#endif
 
     // Bind it to PORT + Protocol
-#if STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_NIOS_INICHE
-    if ((errors == 0) && (bind(server_conn->server_fd, (struct sockaddr *)(&(server_conn->server_addr)), sizeof_addr) < 0)) {
-        print_last_socket_error("Failed to bind socket");
-        ++errors;
-    }
-#else
     if ((errors == 0) && (bind(server_conn->server_fd, (const struct sockaddr *)(&(server_conn->server_addr)), sizeof_addr) < 0)) {
         print_last_socket_error("Failed to bind socket");
         ++errors;
     }
-#endif
 
     // Tell the socket to listen for incoming connections
     if ((errors == 0) && (listen(server_conn->server_fd, MAX_LISTEN) < 0)) {
@@ -227,7 +222,7 @@ RETURN_CODE connect_client_socket(SERVER_CONN *server_conn, int handle_id, SOCKE
     return FAILURE;
 }
 
-RETURN_CODE connect_client(SERVER_CONN *server_conn, CLIENT_CONN *client_conn) {
+RETURN_CODE connect_client(intel_stream_debug_if_driver_context *context, SERVER_CONN *server_conn, CLIENT_CONN *client_conn) {
     enum { MAX_HANDLE_RSP = 64 };
     RETURN_CODE result = OK;
     int handle = get_random_id();
@@ -239,7 +234,7 @@ RETURN_CODE connect_client(SERVER_CONN *server_conn, CLIENT_CONN *client_conn) {
     // and the welcome message requires querying the driver for MGMT support.
     if (server_conn->hw_callbacks.init_driver != NULL) {
         int init_driver_rc;
-        if ((init_driver_rc = server_conn->hw_callbacks.init_driver(server_conn->buff->h2t_rx_buff, server_conn->buff->h2t_rx_buff_sz, server_conn->buff->mgmt_rx_buff, server_conn->buff->mgmt_rx_buff_sz)) != 0) {
+        if ((init_driver_rc = server_conn->hw_callbacks.init_driver(context, context->mmio_handle)) != 0) {
             fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Failed to initialize driver: %d\n", init_driver_rc);
             return INIT_ERR; // Early return if driver fails to initialize, client is rejected.
         }
@@ -910,13 +905,13 @@ void server_terminate()
     terminate = 1;
 }
 
-int server_main(SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn) {
+int server_main(intel_stream_debug_if_driver_context *context, SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn) {
     int rc = 0;
     // Main loop of server app
     do {
         reset_buffers(server_conn);
         CLIENT_CONN client_conn = CLIENT_CONN_default;
-        rc = connect_client(server_conn, &client_conn);
+        rc = connect_client(context, server_conn, &client_conn);
         if (rc == OK)
         {
             handle_client(server_conn, &client_conn);
