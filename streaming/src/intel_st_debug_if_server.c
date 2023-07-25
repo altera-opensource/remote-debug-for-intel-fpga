@@ -286,7 +286,9 @@ RETURN_CODE connect_client(intel_stream_debug_if_driver_context *context, SERVER
     }
     
     if (result != OK) {
-        send(client_conn->ctrl_fd, NOT_READY_MSG, NOT_READY_MSG_LEN, 0);
+        if (client_conn->ctrl_fd != INVALID_SOCKET) {
+            send(client_conn->ctrl_fd, NOT_READY_MSG, NOT_READY_MSG_LEN, 0);
+        }
         return FAILURE;
     } else {
         if (socket_send_all(client_conn->ctrl_fd, READY_MSG, READY_MSG_LEN, 0, &bytes_transferred) == OK) {
@@ -899,41 +901,72 @@ RETURN_CODE initialize_server(unsigned short port, SERVER_CONN *server_conn, con
     return OK;
 }
 
-int terminate;
+static SERVER_CONN *s_server_conn_ptr = NULL; // used to access the server_fd and close it in case of SIGINIT
 void server_terminate()
 {
-    terminate = 1;
-}
-
-int server_main(intel_stream_debug_if_driver_context *context, SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn) {
-    int rc = 0;
-    // Main loop of server app
-    do {
-        reset_buffers(server_conn);
-        CLIENT_CONN client_conn = CLIENT_CONN_default;
-        rc = connect_client(context, server_conn, &client_conn);
-        if (rc == OK)
+    // free TCP/IP recv/send buffer
+    free_tcpip_recv_send_buffer();
+    // Close the listening socket
+    if (s_server_conn_ptr->server_fd != INVALID_SOCKET)
+    {
+        set_linger_socket_option(s_server_conn_ptr->server_fd, 1, 0);
+        if (close_socket_fd(s_server_conn_ptr->server_fd))
         {
-            handle_client(server_conn, &client_conn);
+            fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Error closing server socket.");
         }
         else
         {
-            fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Rejected remote client.\n");
+            s_server_conn_ptr->server_fd = INVALID_SOCKET;
         }
+    }
 
-        close_client_conn(&client_conn, server_conn);
-        if (terminate || rc == INIT_ERR)
+    s_server_conn_ptr = NULL;
+    fpga_msg_printf(FPGA_MSG_PRINTF_INFO, "Server Terminated");
+}
+
+int server_main(intel_remote_debug_server_context *context, SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn)
+{
+    int rc = 0;
+    s_server_conn_ptr = server_conn;
+    rc = alloc_tcpip_recv_send_buffer(context->h2t_t2h_mem_size);
+    if (rc == FAILURE)
+    {
+        return rc;
+    }
+    else
+    {
+        // Main loop of server app
+        do
         {
-            break;
-        }
-    } while (lifespan == MULTIPLE_CLIENTS);
+            reset_buffers(server_conn);
+            CLIENT_CONN client_conn = CLIENT_CONN_default;
+            rc = connect_client(&(context->driver_cxt), server_conn, &client_conn);
+            if (rc == OK)
+            {
+                handle_client(server_conn, &client_conn);
+            }
+            else
+            {
+                fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Rejected remote client.\n");
+            }
+
+            close_client_conn(&client_conn, server_conn);
+            if (rc == INIT_ERR)
+            {
+                break;
+            }
+        } while (lifespan == MULTIPLE_CLIENTS);
+    }
 
     // Close the listening socket
     set_linger_socket_option(server_conn->server_fd, 1, 0);
-    if(close_socket_fd(server_conn->server_fd))
-	    fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Error closing server socket.\n");
+    if (close_socket_fd(server_conn->server_fd))
+        fpga_msg_printf(FPGA_MSG_PRINTF_ERROR, "Error closing server socket.\n");
     else
         server_conn->server_fd = INVALID_SOCKET;
+
+    // capture the server connection status, especially the server_fd, in case of SIGINT, grace termination will close the server_fd
+    s_server_conn_ptr = server_conn;
 
     return rc;
 }

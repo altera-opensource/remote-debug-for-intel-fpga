@@ -1,5 +1,5 @@
-file(GLOB all_FILES *.c *cpp)
+file(GLOB all_FILES src/*.c src/*cpp)
 
 add_library(streaming ${all_FILES})
-
-target_include_directories(streaming PUBLIC ${CMAKE_CURRENT_DIR})
+target_include_directories(streaming PUBLIC inc)
+target_include_directories(streaming PRIVATE "$<TARGET_PROPERTY:protodrv_lib,INTERFACE_INCLUDE_DIRECTORIES>")

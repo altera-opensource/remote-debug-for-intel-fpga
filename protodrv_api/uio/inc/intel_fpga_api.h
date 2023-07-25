@@ -26,5 +26,7 @@
 
 #pragma once
 
+#include "intel_fpga_api_cmn_msg.h"
+#include "intel_fpga_api_cmn_inf.h"
 #include "intel_fpga_api_uio.h"
 

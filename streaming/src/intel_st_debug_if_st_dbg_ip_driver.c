@@ -222,7 +222,7 @@ int get_t2h_data(H2T_PACKET_HEADER *header, uint32_t *payload) {
     return 0;
 }
 
-void t2h_data_complete()
+inline void t2h_data_complete()
 {
     fpga_write_32(g_mmio_handle, ST_DBG_IP_T2H_DESCRIPTORS_DONE, 1);
 }

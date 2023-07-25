@@ -43,22 +43,13 @@
 #include <poll.h>
 #include <semaphore.h>
 
+#include "intel_fpga_api_cmn_msg.h"
 #include "intel_fpga_api_uio.h"
 #include "intel_fpga_platform_uio.h"
 #include "intel_fpga_platform_api_uio.h"
 
 
-FPGA_INTERFACE_INFO     *g_uio_fpga_interface_info_vec = NULL;
-size_t                  g_uio_fpga_interface_info_vec_size = 0;
 sem_t g_intSem;
-
-static int uio_fpga_platform_default_printf(FPGA_MSG_PRINTF_TYPE type, const char * format, va_list args);
-static void uio_fpga_platform_default_runtime_exception_handler(const char *function, const char *file, int lineno, const char * format, va_list args);
-
-FPGA_MSG_PRINTF                 g_uio_fpga_platform_printf = uio_fpga_platform_default_printf;
-FPGA_RUNTIME_EXCEPTION_HANDLER  g_uio_fpga_platform_runtime_exception_handler = uio_fpga_platform_default_runtime_exception_handler;
-
-int g_uio_show_dbg_msg = 0;
 
 static char *s_uio_drv_path = "/dev/uio0";
 static size_t s_uio_addr_span = 0;
@@ -111,7 +102,7 @@ void *uio_interrupt_thread()
         {
             // Loop for uio with interrupt enabled
             // Current implementaion support 1 vector
-            if(g_uio_fpga_interface_info_vec[0].interrupt_enable)
+            if (common_fpga_interface_info_vec_at(0)->interrupt_enable)
             {
                 int fd = 0;
 
@@ -141,9 +132,12 @@ void *uio_interrupt_thread()
                 ret = poll(&fds, 1, s_uio_inThread_timeout);
 
                 if(ret > 0){
-                    if(g_uio_fpga_interface_info_vec[0].isr_callback != NULL){
-                        g_uio_fpga_interface_info_vec[0].isr_callback(g_uio_fpga_interface_info_vec[0].isr_context);
-                    } else {
+                    if (common_fpga_interface_info_vec_at(0)->isr_callback != NULL)
+                    {
+                        common_fpga_interface_info_vec_at(0)->isr_callback(common_fpga_interface_info_vec_at(0)->isr_context);
+                    }
+                    else
+                    {
                         fpga_msg_printf( FPGA_MSG_PRINTF_ERROR, "InterruptThread ISR is NULL ptr" );
                         close(fd);
                         break;
@@ -284,17 +278,14 @@ void fpga_platform_cleanup()
     
     s_uio_drv_handle = -1;
     s_uio_mmap_ptr = NULL;
-    
-    if ( g_uio_fpga_interface_info_vec != NULL )
+
+    if (common_fpga_interface_info_vec_size() > 0)
     {
 #ifdef UIO_UNIT_TEST_SW_MODEL_MODE
-        free(g_uio_fpga_interface_info_vec[0].base_address);
+        free(common_fpga_interface_info_vec_at(0)->base_address);
 #endif 
-        free(g_uio_fpga_interface_info_vec);
-        g_uio_fpga_interface_info_vec = NULL;
+        common_fpga_interface_info_vec_resize(0);
     }
-    
-    g_uio_fpga_interface_info_vec_size = 0;
     
     errno = -1;  //  -1 is a valid return on success.  Some function, such as strtol(), doesn't set errno upon successful return.
 
@@ -308,7 +299,7 @@ void uio_parse_args(unsigned int argc, const char *argv[])
             {"uio-driver-path", required_argument, 0, 'p'},
             {"start-address", required_argument, 0, 'a'},
             {"address-span", required_argument, 0, 's'},
-            {"show-dbg-msg", no_argument, &g_uio_show_dbg_msg, 'd'},
+            {"show-dbg-msg", no_argument, &g_common_show_dbg_msg, 'd'},
             {"single-component-mode", no_argument, &s_uio_single_component_mode, 'c'},
             {0, 0, 0, 0}};
 
@@ -564,19 +555,11 @@ bool uio_scan_interfaces()
     
     if(s_uio_single_component_mode)
     {
-        g_uio_fpga_interface_info_vec = (FPGA_INTERFACE_INFO *)calloc(1, sizeof(FPGA_INTERFACE_INFO));
-        if (g_uio_fpga_interface_info_vec != NULL)
-        {
-            g_uio_fpga_interface_info_vec_size = 1;
+        common_fpga_interface_info_vec_resize(1);
 
-            g_uio_fpga_interface_info_vec[0].base_address = (void *)((char *)s_uio_mmap_ptr + s_uio_start_addr);
-            g_uio_fpga_interface_info_vec[0].is_mmio_opened = false;
-            g_uio_fpga_interface_info_vec[0].is_interrupt_opened = false;
-        }
-        else
-        {
-            ret = false;
-        }
+        common_fpga_interface_info_vec_at(0)->base_address = (void *)((char *)s_uio_mmap_ptr + s_uio_start_addr);
+        common_fpga_interface_info_vec_at(0)->is_mmio_opened = false;
+        common_fpga_interface_info_vec_at(0)->is_interrupt_opened = false;
     }
 
     return ret;
@@ -615,92 +598,11 @@ bool uio_create_unit_test_sw_model()
 {
     bool  ret = true;
 
-    g_uio_fpga_interface_info_vec = (FPGA_INTERFACE_INFO *)calloc(1, sizeof(FPGA_INTERFACE_INFO));
-    if (g_uio_fpga_interface_info_vec != NULL)
-    {
-        g_uio_fpga_interface_info_vec_size = 1;
+    common_fpga_interface_info_vec_resize(1);
 
-        g_uio_fpga_interface_info_vec[0].base_address = malloc(s_uio_addr_span);
-        // Preset mem with all 1s
-        memset(g_uio_fpga_interface_info_vec[0].base_address, 0xFF, s_uio_addr_span);
-
-        g_uio_fpga_interface_info_vec[0].is_mmio_opened = false;
-        g_uio_fpga_interface_info_vec[0].is_interrupt_opened = false;
-    }
-    else
-    {
-        ret = false;
-    }
+    common_fpga_interface_info_vec_at(0)->base_address = malloc(s_uio_addr_span);
+    // Preset mem with all 1s
+    memset(common_fpga_interface_info_vec_at(0)->base_address, 0xFF, s_uio_addr_span);
 
     return ret;
 }
-
-void fpga_platform_register_printf(FPGA_MSG_PRINTF msg_printf)
-{
-    g_uio_fpga_platform_printf = msg_printf;
-}
-
-void fpga_platform_register_runtime_exception_handler(FPGA_RUNTIME_EXCEPTION_HANDLER handler)
-{
-    g_uio_fpga_platform_runtime_exception_handler = handler;
-}
-
-
-int uio_fpga_platform_default_printf(FPGA_MSG_PRINTF_TYPE type, const char * format, va_list args)
-{
-    int ret = 0;
-    
-#ifdef INTEL_FPGA_MSG_PRINTF_ENABLE
-    switch(type)
-    {
-        case FPGA_MSG_PRINTF_INFO:
-#ifdef INTEL_FPGA_MSG_PRINTF_ENABLE_INFO
-            fputs( "INFO: ", stdout );
-            ret = vprintf( format, args );
-            fputs( "\n", stdout );
-#endif            
-            break;
-        case FPGA_MSG_PRINTF_WARNING:
-#ifdef INTEL_FPGA_MSG_PRINTF_ENABLE_WARNING
-            fputs( "WARNING: ", stdout );
-            ret = vprintf( format, args );
-            fputs( "\n", stdout );
-#endif            
-            break;
-        case FPGA_MSG_PRINTF_ERROR:
-#ifdef INTEL_FPGA_MSG_PRINTF_ENABLE_ERROR
-            fputs( "ERROR: ", stdout );
-            ret = vprintf( format, args );
-            fputs( "\n", stdout );
-#endif            
-            break;
-        case FPGA_MSG_PRINTF_DEBUG:
-#ifdef INTEL_FPGA_MSG_PRINTF_ENABLE_DEBUG
-            if (g_uio_show_dbg_msg)
-            {
-                fputs("DEBUG: ", stdout);
-                ret = vprintf(format, args);
-                fputs("\n", stdout);
-            }
-#endif            
-            break;
-        default:
-            fpga_throw_runtime_exception( __FUNCTION__, __FILE__, __LINE__, "invalid message print type is specified." );
-    }
-    
-#endif //INTEL_FPGA_MSG_PRINTF_ENABLE
-
-    return ret;
-}
-
-
-void uio_fpga_platform_default_runtime_exception_handler(const char *function, const char *file, int lineno, const char * format, va_list args)
-{
-    printf( "Exception occured in %s() at line %d in %s due to ", function, lineno, file );
-    vprintf( format, args );
-    printf( "\n\nApplication is terminated.\n" );
-    
-    exit(1);
-}
-
-

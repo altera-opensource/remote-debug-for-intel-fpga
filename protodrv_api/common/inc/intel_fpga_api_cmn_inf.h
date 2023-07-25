@@ -27,33 +27,38 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdarg.h>
-#include <semaphore.h>
+#include "intel_fpga_platform.h"
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+unsigned int fpga_get_num_of_interfaces();
+bool fpga_get_interface_at(unsigned int index, FPGA_INTERFACE_INFO *info);
+FPGA_MMIO_INTERFACE_HANDLE fpga_open(unsigned int index);
+void fpga_close(unsigned int index);
+FPGA_INTERRUPT_HANDLE fpga_interrupt_open(unsigned int index);
+void fpga_interrupt_close(unsigned int index);
 
-bool fpga_platform_init(unsigned int argc, const char *argv[]);
-void fpga_platform_cleanup();
-typedef enum
+
+// This API with pre-fix common_fpga_interface_info_vec implements C++ vector semantics without exception handling.
+// Used internally to access g_common_fpga_interface_info_vec, which shouldn't be used directly outside of the scope of this file.
+extern FPGA_INTERFACE_INFO     *g_common_fpga_interface_info_vec;
+extern size_t                  g_common_fpga_interface_info_vec_reserved;
+extern size_t                  g_common_fpga_interface_info_vec_size;
+static inline size_t common_fpga_interface_info_vec_size()
 {
-    FPGA_MSG_PRINTF_INFO,         //!< In default printf, this type of message is prefixed with "Info: "
-    FPGA_MSG_PRINTF_WARNING,      //!< In default printf, this type of message is prefixed with "Warning: "
-    FPGA_MSG_PRINTF_ERROR,        //!< In default printf, this type of message is prefixed with "Error: "
-    FPGA_MSG_PRINTF_DEBUG         //!< In default printf, this type of message is prefixed with "Debug: "
-} FPGA_MSG_PRINTF_TYPE;
-typedef int (*FPGA_MSG_PRINTF) ( FPGA_MSG_PRINTF_TYPE type, const char * format, va_list args);
-void fpga_platform_register_printf(FPGA_MSG_PRINTF msg_printf);
-typedef void (*FPGA_RUNTIME_EXCEPTION_HANDLER) ( const char *function, const char *file, int lineno, const char * format, va_list args);
-void fpga_platform_register_runtime_exception_handler(FPGA_RUNTIME_EXCEPTION_HANDLER handler);
-#define INTEL_FPGA_MSG_PRINTF_ENABLE  1
-#define INTEL_FPGA_MSG_PRINTF_ENABLE_INFO  1
-#define INTEL_FPGA_MSG_PRINTF_ENABLE_WARNING  1
-#define INTEL_FPGA_MSG_PRINTF_ENABLE_ERROR  1
-#define INTEL_FPGA_MSG_PRINTF_ENABLE_DEBUG  1
-
+    return g_common_fpga_interface_info_vec_size;
+}
+static inline FPGA_INTERFACE_INFO *common_fpga_interface_info_vec_at(size_t index)
+{
+    return g_common_fpga_interface_info_vec + index;
+}
+void common_fpga_interface_info_vec_resize(size_t size);
+void common_fpga_interface_info_vec_reserve(size_t size);
 
 #ifdef __cplusplus
 }

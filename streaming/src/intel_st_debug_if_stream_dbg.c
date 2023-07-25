@@ -64,10 +64,20 @@ static ST_DBG_IP_DESIGN_INFO get_design_info(intel_remote_debug_server_context *
 {
   ST_DBG_IP_DESIGN_INFO result;
   result.ST_DBG_IP_CSR_BASE_ADDR = ST_DBG_IF_BASE;
-  result.H2T_MEM_BASE_ADDR = JOP_MEM_BASE;
-  result.H2T_MEM_SZ = context->h2t_t2h_mem_size;
-  result.T2H_MEM_BASE_ADDR = JOP_MEM_BASE + context->h2t_t2h_mem_size;
-  result.T2H_MEM_SZ = context->h2t_t2h_mem_size;
+  if (context->h2t_t2h_mem_size > JOP_MEM_SIZE_2K)
+  {
+    result.H2T_MEM_BASE_ADDR = context->h2t_t2h_mem_size;
+    result.H2T_MEM_SZ = context->h2t_t2h_mem_size;
+    result.T2H_MEM_BASE_ADDR =  2*context->h2t_t2h_mem_size;
+    result.T2H_MEM_SZ = context->h2t_t2h_mem_size;
+  }
+  else
+  {
+    result.H2T_MEM_BASE_ADDR = H2T_MEM_BASE_2K;
+    result.H2T_MEM_SZ = context->h2t_t2h_mem_size;
+    result.T2H_MEM_BASE_ADDR = T2H_MEM_BASE_4K;
+    result.T2H_MEM_SZ = context->h2t_t2h_mem_size;
+  }
 #if ENABLE_MGMT != 0
   result.MGMT_MEM_BASE_ADDR = MGMT_MEM_BASE;
   result.MGMT_MEM_SZ = MGMT_MEM_SPAN;
@@ -116,7 +126,7 @@ int start_st_dbg_transport_server_over_tcpip(intel_remote_debug_server_context *
 
     if (initialize_server((unsigned short)context->port, &server_conn, SERVER_PORT_FILE) == OK)
     {
-      ret = server_main(&(context->driver_cxt), MULTIPLE_CLIENTS, &server_conn);
+      ret = server_main(context, MULTIPLE_CLIENTS, &server_conn);
     }
     else
     {

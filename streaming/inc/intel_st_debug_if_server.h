@@ -31,6 +31,7 @@
 #include "intel_st_debug_if_packet.h"
 #include "intel_st_debug_if_platform.h"
 #include "intel_st_debug_if_st_dbg_ip_driver.h"
+#include "intel_st_debug_if_stream_dbg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -167,7 +168,7 @@ extern const CLIENT_CONN CLIENT_CONN_default;
 
 // Server code
 RETURN_CODE initialize_server(unsigned short port, SERVER_CONN *server_conn, const char *port_filename);
-int server_main(intel_stream_debug_if_driver_context *context, SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn);
+int server_main(intel_remote_debug_server_context *context, SERVER_LIFESPAN lifespan, SERVER_CONN *server_conn);
 void server_terminate();
 void reject_client(SERVER_CONN *server_conn);
 void handle_client(SERVER_CONN *server_conn, CLIENT_CONN *client_conn);

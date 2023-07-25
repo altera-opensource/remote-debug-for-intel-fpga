@@ -45,7 +45,24 @@ extern "C" {
 
 // Customize here from FPGA design
 #define ST_DBG_IF_BASE 0x0000
-#define JOP_MEM_BASE 0x1000
+/*
+JOP_MEM_SIZE_2K is used to match SW H2T/T2H memory base address with HW tcl definition.
+  tcl path: ip\altera\sld\jtag\intel_jop_blaster\intel_jop_blaster_hw.tcl
+    set str_add_w    11
+    set str_add_max  [expr pow(2,$str_add_w)]
+    if {$mem_size>$str_add_max} {
+        set h2t_base $mem_size
+        set t2h_base [expr $mem_size*2]
+    } else {
+        set h2t_base $str_add_max
+        set t2h_base [expr $str_add_max*2]
+    }
+*/
+#define JOP_MEM_SIZE_2K 2048
+//H2T_MEM_BASE_2K wiil be used if h2t-t2h-mem-size <= JOP_MEM_SIZE_2K
+#define H2T_MEM_BASE_2K 0x800
+//T2H_MEM_BASE_4K wiil be used if h2t-t2h-mem-size <= JOP_MEM_SIZE_2K
+#define T2H_MEM_BASE_4K 0x1000
 
 
 typedef struct {

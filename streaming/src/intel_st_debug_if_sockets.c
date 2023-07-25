@@ -35,11 +35,40 @@
 #include "intel_st_debug_if_common.h"
 #include "intel_st_debug_if_constants.h"
 
+#define PACKET_HEADER_SIZE 64
+
 const struct timeval ZERO_TIMEOUT = { 0, 0 };
 
-enum { SW_SOCKET_BUFF_SZ = 0x1000 };
-static char g_socket_recv_buff[SW_SOCKET_BUFF_SZ+64];
-static char g_socket_send_buff[SW_SOCKET_BUFF_SZ+64];
+static char *g_socket_recv_buff = NULL;
+static char *g_socket_send_buff = NULL;
+
+RETURN_CODE alloc_tcpip_recv_send_buffer(size_t sz)
+{
+    g_socket_recv_buff = (char*)malloc((sz + PACKET_HEADER_SIZE) * sizeof(char));
+    g_socket_send_buff = (char*)malloc((sz + PACKET_HEADER_SIZE) * sizeof(char));
+
+    if(g_socket_recv_buff == NULL || g_socket_send_buff == NULL)
+    {
+        free_tcpip_recv_send_buffer();
+        return FAILURE;
+    }
+    return OK;
+}
+
+void free_tcpip_recv_send_buffer()
+{
+    if(g_socket_recv_buff != NULL)
+    {
+        free(g_socket_recv_buff);
+        g_socket_recv_buff = NULL;
+    }
+
+    if(g_socket_send_buff != NULL)
+    {
+        free(g_socket_send_buff);
+        g_socket_send_buff = NULL;
+    }
+}
 
 SOCKET max_of(SOCKET *array, int size) {
     SOCKET result = 0;
@@ -49,74 +78,6 @@ SOCKET max_of(SOCKET *array, int size) {
     return result;
 }
 
-#if STI_NOSYS_PROT_PLATFORM!=STI_PLATFORM_NIOS_INICHE
-RETURN_CODE connect_with_timeout(SOCKET fd, const struct sockaddr *serv_addr, const struct timeval timeout) {
-    // First set the socket to non-blocking
-    int set_nonblk_result = set_socket_non_blocking(fd, 1);
-    RETURN_CODE result = (set_nonblk_result >= 0) ? OK : FAILURE;
-
-    // If connect fails to immediately succeed (we expect it to)
-    if ((result == OK) && connect(fd, serv_addr, sizeof(*serv_addr)) < 0) {
-        int sockerr = get_last_socket_error();
-#if STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_WINDOWS
-        if ((sockerr == EINPROGRESS) || (sockerr == WSAEWOULDBLOCK)) {
-#else
-        if ((sockerr == EINPROGRESS) || (sockerr == EWOULDBLOCK)) {
-#endif
-            // Loop is to account for possibility of 'select' being interrupted
-            char again = 0;
-            do {
-                again = 0;
-                fd_set writefds;
-                FD_ZERO(&writefds);
-                FD_SET(fd, &writefds);
-                struct timeval non_const_timeout = timeout; // Select may modify timeout
-                int select_res = select((int)(fd + 1), NULL, &writefds, NULL, &non_const_timeout);
-                if (select_res < 0) {
-                    sockerr = get_last_socket_error();
-                    if (sockerr != EINTR) {
-                        // Select failed for a reason other than interruption
-                        result = FAILURE;
-                    } else {
-                        // Try again, select was interrupted.  This edge case has a weakness of resetting the requested timeout.
-                        again = 1;
-                    }
-                } else if (select_res > 0) {
-                    // Socket has a write (connection event occurred!)
-                    socklen_t lon = sizeof(int);
-                    int valopt;
-                    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, (void*)(&valopt), &lon) < 0) {
-                        // 'getsockopt' failed
-                        result = FAILURE;
-                    } else {
-                        // Check the value returned... 
-                        if (valopt) {
-                            // An error is present
-                            result = FAILURE;
-                        }
-                    }
-                } else {
-                    // Timeout occurred...
-                    result = FAILURE;
-                }
-            } while (again == 1);
-        } else {
-            // Error was something other than "in progress"
-            result = FAILURE;
-        }
-    }
-
-    // Restore the socket back to blocking
-    if (set_nonblk_result >= 0) {
-        int set_blk_result = set_socket_non_blocking(fd, 0);
-        if (result == OK) {
-            result = (set_blk_result >= 0) ? OK : FAILURE;
-        }
-    }
-
-    return result;
-}
-#endif
 
 RETURN_CODE socket_send_all(SOCKET fd, const char *buff, const size_t len, int flags, ssize_t *bytes_sent) {
     ssize_t curr_bytes_sent;
@@ -262,19 +223,6 @@ int set_linger_socket_option(SOCKET socket_fd, int l_onoff, int l_linger) {
     return setsockopt(socket_fd, SOL_SOCKET, SO_LINGER, &linger_opt_val, sizeof(linger_opt_val));
 #endif // end if STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_WINDOWS
 #endif // end if STI_NOSYS_PROT_PLATFORM != STI_PLATFORM_NIOS_UC_TCPIP
-}
-
-int set_socket_non_blocking(SOCKET socket_fd, int non_blocking) {
-#if STI_NOSYS_PROT_PLATFORM==STI_PLATFORM_WINDOWS
-    u_long mode = non_blocking;  // 1 to enable non-blocking socket
-    return ioctlsocket(socket_fd, FIONBIO, &mode);
-#else
-    int flags;
-    if ((flags = fcntl(socket_fd, F_GETFL, 0)) < 0)
-        flags = 0;
-    int val = non_blocking ? (flags | O_NONBLOCK) : (flags & !O_NONBLOCK);
-    return fcntl(socket_fd, F_SETFL, val);
-#endif
 }
 
 char is_last_socket_error_would_block() {

@@ -1,2 +1,2 @@
 add_subdirectory(interrupt)
-add_subdirectory(protodrv)
+add_subdirectory(utst)

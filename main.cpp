@@ -40,6 +40,7 @@
 #include "intel_st_debug_if_remote_dbg.h"
 #include "intel_st_debug_if_stream_dbg.h"
 #include "app_version.h"
+#include "intel_fpga_api.h"
 
 // etherlink Command line input help
 static void show_help(const char *program)
@@ -92,15 +93,21 @@ class StreamingDebug : public IRemoteDebug
 {
 public:
     StreamingDebug(){}
-    virtual ~StreamingDebug(){}
+    virtual ~StreamingDebug()
+    {
+        terminate();
+    }
     int run(size_t h2t_t2h_mem_size, const char * /*unused*/, int port) override
     {
-        const FPGA_MMIO_INTERFACE_HANDLE MMIO_HANDLE = 0; // Only 1 IP instance is supported.
-        init_st_dbg_transport_server_over_tcpip(&m_server_context, MMIO_HANDLE, h2t_t2h_mem_size, port);
+        const int fpga_index = 0; // Only 1 IP instance is supported.
+        FPGA_MMIO_INTERFACE_HANDLE handle = fpga_open(fpga_index);
+        init_st_dbg_transport_server_over_tcpip(&m_server_context, handle, h2t_t2h_mem_size, port);
         return start_st_dbg_transport_server_over_tcpip(&m_server_context);
     }
+    
     void terminate() override
     {
+        fpga_close(m_server_context.driver_cxt.mmio_handle);
         terminate_st_dbg_transport_server_over_tcpip();
     }
 

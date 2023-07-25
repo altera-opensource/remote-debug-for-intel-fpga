@@ -34,6 +34,8 @@
 #include <unistd.h>
 
 #include "intel_fpga_api_uio.h"
+#include "intel_fpga_api_cmn_inf.h"
+#include "intel_fpga_api_cmn_msg.h"
 
 /*
  * This testcase is showing:

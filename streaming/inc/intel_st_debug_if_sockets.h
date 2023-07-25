@@ -78,7 +78,6 @@ SOCKET max_of(SOCKET *array, int size);
 #define TRUE 1
 #define FALSE 0
 
-RETURN_CODE connect_with_timeout(SOCKET fd, const struct sockaddr *serv_addr, const struct timeval timeout);
 RETURN_CODE socket_send_all(SOCKET fd, const char * buff, const size_t len, int flags, ssize_t *bytes_sent);
 RETURN_CODE socket_send_all_t2h_data(SOCKET fd, uint64_t buff, const size_t len, int flags, ssize_t *bytes_sent);
 RETURN_CODE socket_recv_until_null_reached(SOCKET sock_fd, char *buff, const size_t max_len, int flags, ssize_t *bytes_recvd);
@@ -88,12 +87,13 @@ RETURN_CODE initialize_sockets_library();
 int set_boolean_socket_option(SOCKET socket_fd, int option, int option_val);
 int set_tcp_no_delay(SOCKET socket_fd, int no_delay);
 int set_linger_socket_option(SOCKET socket_fd, int l_onoff, int l_linger);
-int set_socket_non_blocking(SOCKET socket_fd, int non_blocking);
 char is_last_socket_error_would_block();
 int close_socket_fd(SOCKET socket_fd);
 void wait_for_read_event(SOCKET socket_fd, long seconds, long useconds);
 int get_last_socket_error();
 const char *get_last_socket_error_msg(char *buff, size_t buff_sz);
+RETURN_CODE alloc_tcpip_recv_send_buffer(size_t sz);
+void free_tcpip_recv_send_buffer();
 
 #ifdef __cplusplus    
 }

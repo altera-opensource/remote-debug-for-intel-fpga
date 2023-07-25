@@ -30,22 +30,16 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include "intel_fpga_platform_uio.h"
+#include "intel_fpga_api_cmn_inf.h"
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-unsigned int fpga_get_num_of_interfaces();
-bool fpga_get_interface_at(unsigned int index, FPGA_INTERFACE_INFO *info);
-FPGA_MMIO_INTERFACE_HANDLE fpga_open(unsigned int index);
-void fpga_close(unsigned int index);
-FPGA_INTERRUPT_HANDLE fpga_interrupt_open(unsigned int index);
-void fpga_interrupt_close(unsigned int index);
-
 static inline void *fpga_uio_get_base_address(FPGA_MMIO_INTERFACE_HANDLE handle)
 {
-    return g_uio_fpga_interface_info_vec[handle].base_address;
+    return common_fpga_interface_info_vec_at(handle)->base_address;
 }
 
 static inline uint8_t fpga_read_8(FPGA_MMIO_INTERFACE_HANDLE handle, uint32_t offset)
@@ -129,12 +123,10 @@ static inline void fpga_write_512(FPGA_MMIO_INTERFACE_HANDLE handle, uint32_t of
 void *fpga_malloc(FPGA_MMIO_INTERFACE_HANDLE handle, uint32_t size);
 void fpga_free(FPGA_MMIO_INTERFACE_HANDLE handle, void *address);
 FPGA_PLATFORM_PHYSICAL_MEM_ADDR_TYPE fpga_get_physical_address(void *address);
+
 int fpga_register_isr(FPGA_INTERRUPT_HANDLE handle, FPGA_ISR isr, void *isr_context);
 int fpga_enable_interrupt(FPGA_INTERRUPT_HANDLE handle);
 int fpga_disable_interrupt(FPGA_INTERRUPT_HANDLE handle);
-
-int fpga_msg_printf(FPGA_MSG_PRINTF_TYPE type, const char * format, ...);
-void fpga_throw_runtime_exception(const char *function, const char *file, int lineno, const char * format, ...);
 
 #ifdef __cplusplus
 }

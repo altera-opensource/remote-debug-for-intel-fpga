@@ -33,6 +33,7 @@ using namespace std;
 #include "gtest/gtest.h"
 
 #include "intel_fpga_api_uio.h"
+#include "intel_fpga_api_cmn_msg.h"
 
 extern int optind;
 
