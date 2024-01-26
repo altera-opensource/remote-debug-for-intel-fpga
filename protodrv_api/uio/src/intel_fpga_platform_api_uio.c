@@ -532,7 +532,7 @@ bool uio_map_mmio()
 {
     bool ret = true;
     
-    s_uio_mmap_ptr = mmap(0, s_uio_addr_span, PROT_READ | PROT_WRITE, MAP_SHARED, s_uio_drv_handle, 0);
+    s_uio_mmap_ptr = mmap(0, s_uio_addr_span, PROT_READ | PROT_WRITE, MAP_SHARED, s_uio_drv_handle, s_uio_start_addr);
     if (s_uio_mmap_ptr == MAP_FAILED)
     {
 #ifdef _BSD_SOURCE
@@ -557,7 +557,7 @@ bool uio_scan_interfaces()
     {
         common_fpga_interface_info_vec_resize(1);
 
-        common_fpga_interface_info_vec_at(0)->base_address = (void *)((char *)s_uio_mmap_ptr + s_uio_start_addr);
+        common_fpga_interface_info_vec_at(0)->base_address = s_uio_mmap_ptr;
         common_fpga_interface_info_vec_at(0)->is_mmio_opened = false;
         common_fpga_interface_info_vec_at(0)->is_interrupt_opened = false;
     }
